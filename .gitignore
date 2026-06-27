@@ -1,0 +1,19 @@
+# Xcode signing and secrets
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# macOS
+.DS_Store
+*.pem
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# Local environment and credentials
+.env
+.env.*
+credentials/
