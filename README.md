@@ -180,6 +180,13 @@ Local build without code signing:
 xcodebuild -project ios/WebGuard.xcodeproj -scheme WebGuard -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
+Unit tests on an available iOS simulator:
+
+```sh
+SIMULATOR_ID="$(xcrun simctl list devices available iOS | awk -F '[()]' '/iPhone/ { print $2; exit }')"
+xcodebuild -project ios/WebGuard.xcodeproj -scheme WebGuard -destination "id=$SIMULATOR_ID" CODE_SIGNING_ALLOWED=NO test
+```
+
 Live API smoke test:
 
 ```text

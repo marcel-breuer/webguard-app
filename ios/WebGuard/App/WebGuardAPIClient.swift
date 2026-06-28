@@ -219,8 +219,8 @@ private struct EmptyResponse: Decodable {}
 private extension URL {
     func normalizedWebGuardBaseURL() -> URL {
         var components = URLComponents(url: self, resolvingAgainstBaseURL: false)
-        let normalizedPath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
-        components?.path = normalizedPath
+        let trimmedPath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
+        components?.path = trimmedPath.isEmpty ? "" : "/\(trimmedPath)"
         components?.query = nil
         components?.fragment = nil
         return components?.url ?? self
