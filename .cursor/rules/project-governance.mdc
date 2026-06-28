@@ -1,0 +1,10 @@
+---
+description: Repository governance for WebGuard coding work
+alwaysApply: true
+---
+
+Follow the canonical repository instructions in `AGENTS.md`.
+
+Before changing files, read any nearer local `AGENTS.md` and only relevant skills from `.agent/skills/README.md` and `.agent/skills/`.
+
+Do not duplicate or contradict canonical rules. Keep changes scoped and final responses concise.
