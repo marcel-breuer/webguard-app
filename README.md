@@ -46,7 +46,7 @@ ios/WebGuard/Config/Release.xcconfig
 
 Credentials do not belong in the repository. Backend URLs, team IDs, and the APNs environment may be stored in xcconfig files; passwords, APNs private keys, and test accounts should stay in local `.env` files or in the deployment environment.
 
-The iOS app connects to `https://webguard.example.com`. The domain is configured through `WEBGUARD_BASE_URL` in the build configuration and cannot be edited in the app UI. The login screen only asks for email and password. New accounts are created from the app through the WebGuard registration page.
+The iOS app connects to `https://app.webguard.marcel-breuer.dev`. The domain is configured through `WEBGUARD_BASE_URL` in the build configuration and cannot be edited in the app UI. The login screen only asks for email and password. New accounts are created from the app through the WebGuard registration page.
 
 ## Backend Requirements
 

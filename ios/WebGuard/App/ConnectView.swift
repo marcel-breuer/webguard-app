@@ -4,7 +4,7 @@ struct ConnectView: View {
     @EnvironmentObject private var appState: AppState
     @State private var email = ""
     @State private var password = ""
-    private let registrationURL = URL(string: "https://webguard.example.com/register")!
+    private let registrationURL = URL(string: "https://app.webguard.marcel-breuer.dev/register")!
 
     var body: some View {
         NavigationStack {
