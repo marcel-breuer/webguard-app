@@ -12,7 +12,7 @@ final class AppState: ObservableObject {
     private let keychain: KeychainStore
     private let cache: LocalCache
     private let apnsService: APNsService
-    private static let defaultServerURL = URL(string: "https://webguard.example.com")!
+    private static let defaultServerURL = URL(string: "https://app.webguard.marcel-breuer.dev")!
 
     convenience init() {
         self.init(keychain: .shared, cache: .shared, apnsService: .shared)
