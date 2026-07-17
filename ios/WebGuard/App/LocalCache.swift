@@ -6,6 +6,7 @@ final class LocalCache {
     private let monitorsKey = "webguard.known-monitors"
     private let eventsKey = "webguard.notification-events"
     private let notificationPreferencesKey = "webguard.notification-preferences"
+    private let lastMonitoringRefreshAtKey = "webguard.last-monitoring-refresh-at"
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
@@ -69,10 +70,19 @@ final class LocalCache {
         save(preferences, key: notificationPreferencesKey)
     }
 
+    func loadLastMonitoringRefreshAt() -> Date? {
+        UserDefaults.standard.object(forKey: lastMonitoringRefreshAtKey) as? Date
+    }
+
+    func saveLastMonitoringRefreshAt(_ date: Date) {
+        UserDefaults.standard.set(date, forKey: lastMonitoringRefreshAtKey)
+    }
+
     func clear() {
         UserDefaults.standard.removeObject(forKey: monitorsKey)
         UserDefaults.standard.removeObject(forKey: eventsKey)
         UserDefaults.standard.removeObject(forKey: notificationPreferencesKey)
+        UserDefaults.standard.removeObject(forKey: lastMonitoringRefreshAtKey)
     }
 
     private func save<T: Encodable>(_ value: T, key: String) {
