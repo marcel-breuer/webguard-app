@@ -8,6 +8,8 @@ final class AppState: ObservableObject {
     @Published var events: [PushEvent] = []
     @Published var notificationPreferences: [String: MonitoringNotificationPreference] = [:]
     @Published var pendingMonitoringID: String?
+    @Published var isOffline = false
+    @Published var lastMonitoringRefreshAt: Date?
     @Published var errorMessage: String?
     @Published var isBusy = false
 
@@ -15,6 +17,7 @@ final class AppState: ObservableObject {
     private let cache: LocalCache
     private let apnsService: APNsService
     private static let defaultServerURL = URL(string: "https://app.webguard.marcel-breuer.dev")!
+    private static let monitoringFreshnessWindow: TimeInterval = 5 * 60
 
     convenience init() {
         self.init(keychain: .shared, cache: .shared, apnsService: .shared)
@@ -28,6 +31,7 @@ final class AppState: ObservableObject {
         monitors = cache.loadMonitors()
         events = cache.loadEvents()
         notificationPreferences = cache.loadNotificationPreferences()
+        lastMonitoringRefreshAt = cache.loadLastMonitoringRefreshAt()
 
         NotificationCenter.default.addObserver(
             forName: .didReceivePushEvent,
@@ -111,6 +115,10 @@ final class AppState: ObservableObject {
             try keychain.saveSession(next)
             session = next
             cache.saveMonitors(monitorings)
+            let refreshedAt = Date()
+            cache.saveLastMonitoringRefreshAt(refreshedAt)
+            lastMonitoringRefreshAt = refreshedAt
+            isOffline = false
             monitors = monitorings
         } catch {
             errorMessage = error.localizedDescription
@@ -189,13 +197,26 @@ final class AppState: ObservableObject {
             let monitorings = try await client.listMonitorings()
             cache.saveMonitors(monitorings)
             monitors = monitorings
+            let refreshedAt = Date()
+            cache.saveLastMonitoringRefreshAt(refreshedAt)
+            lastMonitoringRefreshAt = refreshedAt
+            isOffline = false
             updateLastAPICallAt()
         } catch WebGuardAPIError.unauthorized {
             await signOut()
             errorMessage = WebGuardAPIError.unauthorized.localizedDescription
         } catch {
+            isOffline = true
             errorMessage = error.localizedDescription
         }
+    }
+
+    var isMonitoringDataStale: Bool {
+        guard let lastMonitoringRefreshAt else {
+            return !monitors.isEmpty
+        }
+
+        return Date().timeIntervalSince(lastMonitoringRefreshAt) > Self.monitoringFreshnessWindow
     }
 
     func refreshMonitoring(_ monitoringID: String) async -> KnownMonitor? {
@@ -305,6 +326,8 @@ final class AppState: ObservableObject {
         events = []
         notificationPreferences = [:]
         pendingMonitoringID = nil
+        isOffline = false
+        lastMonitoringRefreshAt = nil
     }
 
     private func handlePushEvent(_ event: PushEvent) {

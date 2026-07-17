@@ -27,6 +27,8 @@ struct MonitoringListView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     HeaderBar()
 
+                    MonitoringFreshnessBanner()
+
                     Text("Monitorings")
                         .font(.system(size: 34, weight: .black, design: .rounded))
                         .foregroundStyle(Brand.text)
@@ -48,7 +50,7 @@ struct MonitoringListView: View {
 
                     VStack(spacing: 0) {
                         if filteredMonitors.isEmpty {
-                            Text("Keine Monitorings gefunden.")
+                            Text(emptyStateMessage)
                                 .font(.system(size: 15, design: .rounded))
                                 .foregroundStyle(Brand.mutedText)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -106,6 +108,93 @@ struct MonitoringListView: View {
 
     private func count(_ tone: MonitorTone) -> Int {
         appState.monitors.filter { $0.tone == tone }.count
+    }
+
+    private var emptyStateMessage: String {
+        if appState.monitors.isEmpty && appState.isOffline {
+            return "Keine Verbindung. Cached Monitorings sind noch nicht verfügbar."
+        }
+
+        return "Keine Monitorings gefunden."
+    }
+}
+
+struct MonitoringFreshnessBanner: View {
+    @EnvironmentObject private var appState: AppState
+
+    private var title: String {
+        if appState.isOffline {
+            return "Offline"
+        }
+
+        if appState.isMonitoringDataStale {
+            return "Daten möglicherweise veraltet"
+        }
+
+        return "Monitoring-Daten aktuell"
+    }
+
+    private var message: String {
+        guard let lastRefresh = appState.lastMonitoringRefreshAt else {
+            return "Noch keine erfolgreiche Synchronisierung."
+        }
+
+        return "Zuletzt synchronisiert \(lastRefresh.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    private var iconName: String {
+        if appState.isOffline {
+            return "wifi.slash"
+        }
+
+        if appState.isMonitoringDataStale {
+            return "clock.badge.exclamationmark"
+        }
+
+        return "checkmark.circle"
+    }
+
+    private var color: Color {
+        if appState.isOffline {
+            return Brand.danger
+        }
+
+        if appState.isMonitoringDataStale {
+            return Brand.warning
+        }
+
+        return Brand.success
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: iconName)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(color)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .foregroundStyle(Brand.text)
+                Text(message)
+                    .font(.system(size: 14, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+
+                if appState.isOffline {
+                    Button("Erneut versuchen") {
+                        Task {
+                            await appState.refreshMonitorings()
+                        }
+                    }
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(Brand.accent)
+                    .padding(.top, 2)
+                }
+            }
+
+            Spacer()
+        }
+        .webGuardCard()
     }
 }
 
