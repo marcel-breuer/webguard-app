@@ -35,22 +35,39 @@ struct RootView: View {
 }
 
 struct MainTabsView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var selectedTab: MainTab = .monitorings
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             MonitoringListView()
                 .tabItem {
                     Label("Monitorings", systemImage: "checklist")
                 }
+                .tag(MainTab.monitorings)
 
             NotificationsView()
                 .tabItem {
                     Label("Benachrichtigungen", systemImage: "bell")
                 }
+                .tag(MainTab.notifications)
 
             SettingsView()
                 .tabItem {
                     Label("Einstellungen", systemImage: "gearshape")
                 }
+                .tag(MainTab.settings)
+        }
+        .onChange(of: appState.pendingMonitoringID) { _, monitoringID in
+            if monitoringID != nil {
+                selectedTab = .monitorings
+            }
         }
     }
+}
+
+private enum MainTab {
+    case monitorings
+    case notifications
+    case settings
 }

@@ -4,6 +4,7 @@ struct MonitoringListView: View {
     @EnvironmentObject private var appState: AppState
     @State private var query = ""
     @State private var filter: MonitorFilter = .systems
+    @State private var selectedMonitor: KnownMonitor?
 
     private var filteredMonitors: [KnownMonitor] {
         let base = filter == .systems ? appState.monitors.filter { $0.status != nil } : appState.monitors
@@ -54,7 +55,12 @@ struct MonitoringListView: View {
                                 .padding(.vertical, 8)
                         } else {
                             ForEach(filteredMonitors) { monitor in
-                                MonitorRow(monitor: monitor)
+                                Button {
+                                    selectedMonitor = monitor
+                                } label: {
+                                    MonitorRow(monitor: monitor)
+                                }
+                                .buttonStyle(.plain)
                                 Divider().background(Brand.border)
                             }
                         }
@@ -71,13 +77,163 @@ struct MonitoringListView: View {
                 if appState.monitors.isEmpty {
                     await appState.refreshMonitorings()
                 }
+
+                openPendingMonitoringIfNeeded()
+            }
+            .onChange(of: appState.pendingMonitoringID) { _, _ in
+                openPendingMonitoringIfNeeded()
+            }
+            .navigationDestination(item: $selectedMonitor) { monitor in
+                MonitoringDetailView(monitor: monitor)
             }
             .background(Brand.background)
         }
     }
 
+    private func openPendingMonitoringIfNeeded() {
+        guard let monitoringID = appState.pendingMonitoringID else {
+            return
+        }
+
+        if let monitor = appState.monitors.first(where: { $0.id == monitoringID }) {
+            selectedMonitor = monitor
+            appState.pendingMonitoringID = nil
+        } else {
+            appState.pendingMonitoringID = nil
+            appState.errorMessage = "Das Monitoring aus der Benachrichtigung ist nicht mehr verfügbar."
+        }
+    }
+
     private func count(_ tone: MonitorTone) -> Int {
         appState.monitors.filter { $0.tone == tone }.count
+    }
+}
+
+struct MonitoringDetailView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var monitor: KnownMonitor
+    @State private var isRefreshing = false
+
+    init(monitor: KnownMonitor) {
+        _monitor = State(initialValue: monitor)
+    }
+
+    private var relatedEvents: [PushEvent] {
+        appState.events
+            .filter { $0.monitoringID == monitor.id }
+            .sorted { $0.occurredAt > $1.occurredAt }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text(monitor.name)
+                            .font(.system(size: 28, weight: .black, design: .rounded))
+                            .foregroundStyle(Brand.text)
+
+                        Spacer()
+
+                        StatusPill(tone: monitor.tone, label: monitor.status ?? "Unknown")
+                    }
+
+                    Text(monitor.target.isEmpty ? monitor.id : monitor.target)
+                        .font(.system(size: 16, design: .rounded))
+                        .foregroundStyle(Brand.mutedText)
+                        .textSelection(.enabled)
+                }
+                .webGuardCard()
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Status")
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(Brand.text)
+
+                    DetailField(
+                        label: "Letzte Prüfung",
+                        value: monitor.lastSeenAt.formatted(date: .abbreviated, time: .shortened)
+                    )
+
+                    Button {
+                        Task {
+                            isRefreshing = true
+                            if let refreshed = await appState.refreshMonitoring(monitor.id) {
+                                monitor = refreshed
+                            }
+                            isRefreshing = false
+                        }
+                    } label: {
+                        Label(
+                            isRefreshing ? "Wird aktualisiert" : "Status aktualisieren",
+                            systemImage: "arrow.clockwise"
+                        )
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(isRefreshing)
+                }
+                .webGuardCard()
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Letzte Ereignisse")
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(Brand.text)
+                        .padding(.bottom, 12)
+
+                    if relatedEvents.isEmpty {
+                        Text("Für dieses Monitoring liegen noch keine Push Events vor.")
+                            .font(.system(size: 15, design: .rounded))
+                            .foregroundStyle(Brand.mutedText)
+                    } else {
+                        ForEach(relatedEvents) { event in
+                            IncidentTimelineRow(event: event)
+                            if event.id != relatedEvents.last?.id {
+                                Divider().background(Brand.border)
+                            }
+                        }
+                    }
+                }
+                .webGuardCard()
+            }
+            .padding(20)
+            .webGuardContentWidth(900)
+        }
+        .navigationTitle("Monitoring")
+        .navigationBarTitleDisplayMode(.inline)
+        .background(Brand.background)
+    }
+}
+
+private struct IncidentTimelineRow: View {
+    let event: PushEvent
+
+    private var isRecovery: Bool {
+        event.eventType == "recovery"
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: isRecovery ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(isRecovery ? Brand.success : Brand.danger)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(isRecovery ? "Wiederhergestellt" : "Vorfall")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(Brand.text)
+                Text(event.occurredAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.system(size: 14, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+            }
+
+            Spacer()
+
+            Text(event.severity.capitalized)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(Brand.mutedText)
+        }
+        .padding(.vertical, 10)
     }
 }
 

@@ -6,6 +6,7 @@ final class AppState: ObservableObject {
     @Published var session: StoredSession?
     @Published var monitors: [KnownMonitor] = []
     @Published var events: [PushEvent] = []
+    @Published var pendingMonitoringID: String?
     @Published var errorMessage: String?
     @Published var isBusy = false
 
@@ -37,6 +38,20 @@ final class AppState: ObservableObject {
 
             Task { @MainActor in
                 self?.handlePushEvent(event)
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .didOpenPushEvent,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let event = notification.object as? PushEvent else {
+                return
+            }
+
+            Task { @MainActor in
+                self?.pendingMonitoringID = event.monitoringID
             }
         }
     }
@@ -181,6 +196,40 @@ final class AppState: ObservableObject {
         }
     }
 
+    func refreshMonitoring(_ monitoringID: String) async -> KnownMonitor? {
+        guard let client = apiClient else {
+            return nil
+        }
+
+        do {
+            let payload = try await client.monitoringStatus(monitorID: monitoringID)
+            guard let index = monitors.firstIndex(where: { $0.id == monitoringID }) else {
+                return nil
+            }
+
+            var monitor = monitors[index]
+            monitor.status = payload.status ?? payload.statusLabel ?? monitor.status
+            if let checkedAt = payload.checkedAt,
+               let date = ISO8601DateFormatter().date(from: checkedAt) {
+                monitor.lastSeenAt = date
+            } else {
+                monitor.lastSeenAt = Date()
+            }
+
+            monitors[index] = monitor
+            cache.upsertMonitor(monitor)
+            updateLastAPICallAt()
+            return monitor
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        return nil
+    }
+
     func signOut() async {
         if let client = apiClient {
             if let deviceID = session?.deviceID {
@@ -195,6 +244,7 @@ final class AppState: ObservableObject {
         session = nil
         monitors = []
         events = []
+        pendingMonitoringID = nil
     }
 
     private func handlePushEvent(_ event: PushEvent) {
