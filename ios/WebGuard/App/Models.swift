@@ -35,7 +35,7 @@ struct MobilePushDevice: Codable, Identifiable, Equatable {
     }
 }
 
-struct KnownMonitor: Codable, Identifiable, Equatable {
+struct KnownMonitor: Codable, Identifiable, Equatable, Hashable {
     var id: String
     var name: String
     var target: String

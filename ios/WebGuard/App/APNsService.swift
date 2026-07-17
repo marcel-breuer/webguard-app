@@ -5,6 +5,7 @@ import UserNotifications
 extension Notification.Name {
     static let didReceiveAPNsToken = Notification.Name("WebGuard.didReceiveAPNsToken")
     static let didReceivePushEvent = Notification.Name("WebGuard.didReceivePushEvent")
+    static let didOpenPushEvent = Notification.Name("WebGuard.didOpenPushEvent")
 }
 
 enum APNsServiceError: LocalizedError {
@@ -98,7 +99,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        postPushEventIfPresent(notification.request.content.userInfo)
+        postPushEventIfPresent(notification.request.content.userInfo, opened: false)
         return [.banner, .list, .sound, .badge]
     }
 
@@ -106,15 +107,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        postPushEventIfPresent(response.notification.request.content.userInfo)
+        postPushEventIfPresent(response.notification.request.content.userInfo, opened: true)
     }
 
-    private func postPushEventIfPresent(_ userInfo: [AnyHashable: Any]) {
+    private func postPushEventIfPresent(_ userInfo: [AnyHashable: Any], opened: Bool) {
         guard let event = PushEvent(userInfo: userInfo) else {
             return
         }
 
         NotificationCenter.default.post(name: .didReceivePushEvent, object: event)
+
+        if opened {
+            NotificationCenter.default.post(name: .didOpenPushEvent, object: event)
+        }
     }
 }
 
