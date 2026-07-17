@@ -105,6 +105,33 @@ final class WebGuardAPIClient {
         try await request("/monitorings/\(monitorID)/status", method: "GET")
     }
 
+    func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
+        let response: MonitoringNotificationPreferenceResponse = try await request(
+            "/monitorings/\(monitorID)/notification-preferences",
+            method: "GET"
+        )
+        return response.data
+    }
+
+    func updateMonitoringNotificationPreference(
+        monitoringID: String,
+        notificationOnFailure: Bool,
+        notificationChannels: [String],
+        sslExpiryWarningDays: Int
+    ) async throws -> MonitoringNotificationPreference {
+        let payload = MonitoringNotificationPreferenceUpdatePayload(
+            notificationOnFailure: notificationOnFailure,
+            notificationChannels: notificationChannels,
+            sslExpiryWarningDays: sslExpiryWarningDays
+        )
+        let response: MonitoringNotificationPreferenceResponse = try await request(
+            "/monitorings/\(monitoringID)/notification-preferences",
+            method: "PATCH",
+            body: payload
+        )
+        return response.data
+    }
+
     private func request<Response: Decodable>(
         _ path: String,
         method: String

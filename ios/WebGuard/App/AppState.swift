@@ -6,6 +6,7 @@ final class AppState: ObservableObject {
     @Published var session: StoredSession?
     @Published var monitors: [KnownMonitor] = []
     @Published var events: [PushEvent] = []
+    @Published var notificationPreferences: [String: MonitoringNotificationPreference] = [:]
     @Published var pendingMonitoringID: String?
     @Published var errorMessage: String?
     @Published var isBusy = false
@@ -26,6 +27,7 @@ final class AppState: ObservableObject {
         session = try? keychain.loadSession()
         monitors = cache.loadMonitors()
         events = cache.loadEvents()
+        notificationPreferences = cache.loadNotificationPreferences()
 
         NotificationCenter.default.addObserver(
             forName: .didReceivePushEvent,
@@ -230,6 +232,63 @@ final class AppState: ObservableObject {
         return nil
     }
 
+    func loadNotificationPreferences() async {
+        guard let client = apiClient else {
+            return
+        }
+
+        for monitor in monitors {
+            do {
+                let preference = try await client.monitoringNotificationPreference(monitorID: monitor.id)
+                notificationPreferences[monitor.id] = preference
+                cache.saveNotificationPreferences(notificationPreferences)
+            } catch WebGuardAPIError.unauthorized {
+                await signOut()
+                errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+                return
+            } catch {
+                errorMessage = error.localizedDescription
+                return
+            }
+        }
+    }
+
+    func setMonitoringNotificationEnabled(_ enabled: Bool, monitoringID: String) async {
+        guard let client = apiClient,
+              let previous = notificationPreferences[monitoringID] else {
+            return
+        }
+
+        var optimistic = previous
+        optimistic.notificationOnFailure = enabled
+        notificationPreferences[monitoringID] = optimistic
+        cache.saveNotificationPreferences(notificationPreferences)
+
+        isBusy = true
+        defer { isBusy = false }
+
+        do {
+            let updated = try await client.updateMonitoringNotificationPreference(
+                monitoringID: monitoringID,
+                notificationOnFailure: enabled,
+                notificationChannels: previous.notificationChannels,
+                sslExpiryWarningDays: previous.sslExpiryWarningDays
+            )
+            notificationPreferences[monitoringID] = updated
+            cache.saveNotificationPreferences(notificationPreferences)
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            notificationPreferences[monitoringID] = previous
+            cache.saveNotificationPreferences(notificationPreferences)
+            await signOut()
+            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+        } catch {
+            notificationPreferences[monitoringID] = previous
+            cache.saveNotificationPreferences(notificationPreferences)
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func signOut() async {
         if let client = apiClient {
             if let deviceID = session?.deviceID {
@@ -244,6 +303,7 @@ final class AppState: ObservableObject {
         session = nil
         monitors = []
         events = []
+        notificationPreferences = [:]
         pendingMonitoringID = nil
     }
 
