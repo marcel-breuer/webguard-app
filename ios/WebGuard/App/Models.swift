@@ -90,6 +90,40 @@ struct MonitoringSummary: Decodable, Identifiable {
     var status: String?
 }
 
+struct MonitoringNotificationPreference: Codable, Identifiable, Equatable, Hashable {
+    var monitoringID: String
+    var notificationOnFailure: Bool
+    var notificationChannels: [String]
+    var sslExpiryWarningDays: Int
+
+    var id: String {
+        monitoringID
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case monitoringID = "monitoring_id"
+        case notificationOnFailure = "notification_on_failure"
+        case notificationChannels = "notification_channels"
+        case sslExpiryWarningDays = "ssl_expiry_warning_days"
+    }
+}
+
+struct MonitoringNotificationPreferenceResponse: Decodable {
+    var data: MonitoringNotificationPreference
+}
+
+struct MonitoringNotificationPreferenceUpdatePayload: Encodable {
+    var notificationOnFailure: Bool
+    var notificationChannels: [String]
+    var sslExpiryWarningDays: Int
+
+    enum CodingKeys: String, CodingKey {
+        case notificationOnFailure = "notification_on_failure"
+        case notificationChannels = "notification_channels"
+        case sslExpiryWarningDays = "ssl_expiry_warning_days"
+    }
+}
+
 struct MobileLoginPayload: Encodable {
     var email: String
     var password: String
