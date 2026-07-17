@@ -44,5 +44,16 @@
 	</array>
 	<key>WEBGUARD_BASE_URL</key>
 	<string>$(WEBGUARD_BASE_URL)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.example.webguard</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>webguard</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

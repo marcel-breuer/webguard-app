@@ -20,6 +20,9 @@ struct RootView: View {
         } message: {
             Text(appState.errorMessage ?? "")
         }
+        .onOpenURL { url in
+            appState.handleDeepLink(url)
+        }
     }
 
     private var errorBinding: Binding<Bool> {
