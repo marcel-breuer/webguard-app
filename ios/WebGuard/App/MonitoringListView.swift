@@ -21,6 +21,18 @@ struct MonitoringListView: View {
         }
     }
 
+    private var maintenanceMonitors: [KnownMonitor] {
+        appState.monitors
+            .filter { $0.maintenanceWindowState != nil }
+            .sorted { lhs, rhs in
+                if lhs.maintenanceWindowState != rhs.maintenanceWindowState {
+                    return lhs.maintenanceWindowState == .active
+                }
+
+                return lhs.maintenanceFrom ?? .distantFuture < rhs.maintenanceFrom ?? .distantFuture
+            }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -28,6 +40,10 @@ struct MonitoringListView: View {
                     HeaderBar()
 
                     MonitoringFreshnessBanner()
+
+                    if !maintenanceMonitors.isEmpty {
+                        MaintenanceSummaryCard(monitors: maintenanceMonitors)
+                    }
 
                     Text("Monitorings")
                         .font(.system(size: 34, weight: .black, design: .rounded))
@@ -198,6 +214,121 @@ struct MonitoringFreshnessBanner: View {
     }
 }
 
+private struct MaintenanceSummaryCard: View {
+    let monitors: [KnownMonitor]
+
+    private var activeCount: Int {
+        monitors.filter { $0.maintenanceWindowState == .active }.count
+    }
+
+    var body: some View {
+        NavigationLink {
+            MaintenanceWindowsView(monitors: monitors)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "wrench.and.screwdriver.fill")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(Brand.warning)
+                    .frame(width: 42, height: 42)
+                    .background(Brand.warningMuted)
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Wartungsfenster")
+                        .font(.system(size: 17, weight: .black, design: .rounded))
+                        .foregroundStyle(Brand.text)
+                    Text("\(activeCount) aktiv · \(monitors.count - activeCount) geplant")
+                        .font(.system(size: 14, design: .rounded))
+                        .foregroundStyle(Brand.mutedText)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Brand.mutedText)
+            }
+        }
+        .buttonStyle(.plain)
+        .webGuardCard()
+    }
+}
+
+private struct MaintenanceWindowsView: View {
+    let monitors: [KnownMonitor]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Aktive und geplante Wartungsfenster")
+                    .font(.system(size: 25, weight: .black, design: .rounded))
+                    .foregroundStyle(Brand.text)
+
+                ForEach(monitors) { monitor in
+                    MaintenanceWindowRow(monitor: monitor)
+                }
+            }
+            .padding(20)
+            .webGuardContentWidth(900)
+        }
+        .navigationTitle("Wartungsfenster")
+        .navigationBarTitleDisplayMode(.inline)
+        .background(Brand.background)
+    }
+}
+
+private struct MaintenanceWindowRow: View {
+    let monitor: KnownMonitor
+
+    private var state: MaintenanceWindowState {
+        monitor.maintenanceWindowState ?? .upcoming
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: state == .active ? "wrench.and.screwdriver.fill" : "calendar")
+                    .foregroundStyle(Brand.warning)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(monitor.name)
+                        .font(.system(size: 17, weight: .black, design: .rounded))
+                        .foregroundStyle(Brand.text)
+                    Text(monitor.target.isEmpty ? monitor.id : monitor.target)
+                        .font(.system(size: 14, design: .rounded))
+                        .foregroundStyle(Brand.mutedText)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Text(state.title)
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .foregroundStyle(Brand.warning)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(Brand.warningMuted)
+                    .clipShape(Capsule())
+            }
+
+            if let from = monitor.maintenanceFrom {
+                DetailField(label: "Zeitraum", value: maintenancePeriod(from: from, until: monitor.maintenanceUntil))
+            }
+        }
+        .webGuardCard()
+    }
+
+    private func maintenancePeriod(from: Date, until: Date?) -> String {
+        let start = from.formatted(date: .abbreviated, time: .shortened)
+
+        guard let until else {
+            return "Ab \(start)"
+        }
+
+        return "\(start) – \(until.formatted(date: .abbreviated, time: .shortened))"
+    }
+}
+
 struct MonitoringDetailView: View {
     @EnvironmentObject private var appState: AppState
     @State private var monitor: KnownMonitor
@@ -233,6 +364,29 @@ struct MonitoringDetailView: View {
                         .textSelection(.enabled)
                 }
                 .webGuardCard()
+
+                if let maintenanceState = monitor.maintenanceWindowState {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label(
+                            "Wartungsfenster \(maintenanceState.title.lowercased())",
+                            systemImage: "wrench.and.screwdriver"
+                        )
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundStyle(Brand.warning)
+
+                        if let from = monitor.maintenanceFrom {
+                            DetailField(
+                                label: "Zeitraum",
+                                value: maintenancePeriod(from: from, until: monitor.maintenanceUntil)
+                            )
+                        }
+
+                        Text("Der Status wird während des Wartungsfensters als Wartung angezeigt.")
+                            .font(.system(size: 14, design: .rounded))
+                            .foregroundStyle(Brand.mutedText)
+                    }
+                    .webGuardCard()
+                }
 
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Status")
@@ -292,6 +446,16 @@ struct MonitoringDetailView: View {
         .navigationTitle("Monitoring")
         .navigationBarTitleDisplayMode(.inline)
         .background(Brand.background)
+    }
+
+    private func maintenancePeriod(from: Date, until: Date?) -> String {
+        let start = from.formatted(date: .abbreviated, time: .shortened)
+
+        guard let until else {
+            return "Ab \(start)"
+        }
+
+        return "\(start) – \(until.formatted(date: .abbreviated, time: .shortened))"
     }
 }
 
@@ -469,6 +633,10 @@ struct StatusPill: View {
     }
 
     private var displayLabel: String {
+        if tone == .maintenance {
+            return "MAINTENANCE"
+        }
+
         let value = label.lowercased()
 
         if value.contains("up") || value == "active" {

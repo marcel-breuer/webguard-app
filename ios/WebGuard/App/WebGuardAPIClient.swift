@@ -62,7 +62,10 @@ final class WebGuardAPIClient {
                 name: monitoring.name,
                 target: monitoring.target,
                 status: monitoring.status,
-                lastSeenAt: Date()
+                lastSeenAt: Date(),
+                maintenanceActive: monitoring.maintenanceActive,
+                maintenanceFrom: monitoring.maintenanceFrom,
+                maintenanceUntil: monitoring.maintenanceUntil
             )
         }
     }

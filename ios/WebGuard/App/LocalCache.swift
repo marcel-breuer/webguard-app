@@ -53,7 +53,10 @@ final class LocalCache {
             name: event.monitoringName,
             target: event.monitoringTarget,
             status: event.eventType == "recovery" ? "up" : event.eventType == "incident" ? "down" : nil,
-            lastSeenAt: event.occurredAt
+            lastSeenAt: event.occurredAt,
+            maintenanceActive: nil,
+            maintenanceFrom: nil,
+            maintenanceUntil: nil
         ))
     }
 
