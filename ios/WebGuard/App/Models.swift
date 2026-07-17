@@ -41,6 +41,9 @@ struct KnownMonitor: Codable, Identifiable, Equatable, Hashable {
     var target: String
     var status: String?
     var lastSeenAt: Date
+    var maintenanceActive: Bool?
+    var maintenanceFrom: Date?
+    var maintenanceUntil: Date?
 }
 
 struct PushEvent: Codable, Identifiable, Equatable {
@@ -88,6 +91,19 @@ struct MonitoringSummary: Decodable, Identifiable {
     var name: String
     var target: String
     var status: String?
+    var maintenanceActive: Bool?
+    var maintenanceFrom: Date?
+    var maintenanceUntil: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case target
+        case status
+        case maintenanceActive = "maintenance_active"
+        case maintenanceFrom = "maintenance_from"
+        case maintenanceUntil = "maintenance_until"
+    }
 }
 
 struct MonitoringNotificationPreference: Codable, Identifiable, Equatable, Hashable {
@@ -195,9 +211,27 @@ enum MonitorTone {
     case unknown
 }
 
+enum MaintenanceWindowState: Equatable {
+    case active
+    case upcoming
+
+    var title: String {
+        switch self {
+        case .active:
+            return "Aktiv"
+        case .upcoming:
+            return "Geplant"
+        }
+    }
+}
+
 extension KnownMonitor {
     var tone: MonitorTone {
         let value = (status ?? "").lowercased()
+
+        if maintenanceWindowState == .active {
+            return .maintenance
+        }
 
         if value.contains("down") || value.contains("fail") {
             return .down
@@ -212,5 +246,21 @@ extension KnownMonitor {
         }
 
         return .unknown
+    }
+
+    var maintenanceWindowState: MaintenanceWindowState? {
+        let now = Date()
+
+        if maintenanceActive == true
+            || (maintenanceFrom.map { $0 <= now } == true
+                && (maintenanceUntil == nil || maintenanceUntil.map { $0 > now } == true)) {
+            return .active
+        }
+
+        if maintenanceFrom.map({ $0 > now }) == true {
+            return .upcoming
+        }
+
+        return nil
     }
 }
