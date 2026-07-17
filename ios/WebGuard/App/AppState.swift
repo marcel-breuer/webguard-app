@@ -32,6 +32,11 @@ final class AppState: ObservableObject {
         events = cache.loadEvents()
         notificationPreferences = cache.loadNotificationPreferences()
         lastMonitoringRefreshAt = cache.loadLastMonitoringRefreshAt()
+        if session == nil {
+            WidgetSnapshotStore.clear()
+        } else {
+            saveWidgetSnapshot()
+        }
 
         NotificationCenter.default.addObserver(
             forName: .didReceivePushEvent,
@@ -120,6 +125,7 @@ final class AppState: ObservableObject {
             lastMonitoringRefreshAt = refreshedAt
             isOffline = false
             monitors = monitorings
+            saveWidgetSnapshot()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -201,6 +207,7 @@ final class AppState: ObservableObject {
             cache.saveLastMonitoringRefreshAt(refreshedAt)
             lastMonitoringRefreshAt = refreshedAt
             isOffline = false
+            saveWidgetSnapshot()
             updateLastAPICallAt()
         } catch WebGuardAPIError.unauthorized {
             await signOut()
@@ -241,6 +248,7 @@ final class AppState: ObservableObject {
 
             monitors[index] = monitor
             cache.upsertMonitor(monitor)
+            saveWidgetSnapshot()
             updateLastAPICallAt()
             return monitor
         } catch WebGuardAPIError.unauthorized {
@@ -328,12 +336,20 @@ final class AppState: ObservableObject {
         pendingMonitoringID = nil
         isOffline = false
         lastMonitoringRefreshAt = nil
+        WidgetSnapshotStore.clear()
+    }
+
+    func handleDeepLink(_ url: URL) {
+        if let monitoringID = WidgetDeepLink.monitoringID(from: url) {
+            pendingMonitoringID = monitoringID
+        }
     }
 
     private func handlePushEvent(_ event: PushEvent) {
         cache.addEvent(event)
         events = cache.loadEvents()
         monitors = cache.loadMonitors()
+        saveWidgetSnapshot()
     }
 
     private func persist(_ next: StoredSession) {
@@ -352,5 +368,20 @@ final class AppState: ObservableObject {
 
         next.lastAPICallAt = Date()
         persist(next)
+    }
+
+    private func saveWidgetSnapshot() {
+        WidgetSnapshotStore.save(
+            monitors: monitors.map { monitor in
+                WidgetMonitorSnapshot(
+                    id: monitor.id,
+                    name: monitor.name,
+                    target: monitor.target,
+                    status: monitor.status ?? "",
+                    isDown: monitor.tone == .down,
+                    isMaintenance: monitor.tone == .maintenance
+                )
+            }
+        )
     }
 }

@@ -36,6 +36,50 @@ final class WebGuardTests: XCTestCase {
         XCTAssertEqual(device.lastSeenAt, "2026-06-27T08:30:00Z")
     }
 
+    func testWidgetSnapshotRoundTripsStatusData() throws {
+        let snapshot = WidgetSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 0),
+            monitors: [
+                WidgetMonitorSnapshot(
+                    id: "monitor-1",
+                    name: "Example",
+                    target: "https://example.com",
+                    status: "down",
+                    isDown: true,
+                    isMaintenance: false
+                )
+            ]
+        )
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+
+        let roundTripped = try decoder.decode(
+            WidgetSnapshot.self,
+            from: encoder.encode(snapshot)
+        )
+
+        XCTAssertEqual(roundTripped, snapshot)
+        XCTAssertEqual(roundTripped.monitors[0].statusLabel, "DOWN")
+    }
+
+    func testWidgetDeepLinksResolveOverviewAndMonitoring() {
+        XCTAssertEqual(WidgetDeepLink.overview.absoluteString, "webguard://monitorings")
+        let monitoringURL = WidgetDeepLink.monitoring("monitor-1")!
+
+        XCTAssertEqual(monitoringURL.absoluteString, "webguard://monitoring/monitor-1")
+        XCTAssertEqual(WidgetDeepLink.monitoringID(from: monitoringURL), "monitor-1")
+    }
+
+    func testWidgetSnapshotStoreClearsAccountData() {
+        WidgetSnapshotStore.clear()
+        WidgetSnapshotStore.save(monitors: [])
+        XCTAssertNotNil(WidgetSnapshotStore.load())
+
+        WidgetSnapshotStore.clear()
+
+        XCTAssertNil(WidgetSnapshotStore.load())
+    }
+
     private func monitor(status: String?) -> KnownMonitor {
         KnownMonitor(
             id: "monitor-1",
