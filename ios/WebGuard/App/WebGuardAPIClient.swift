@@ -70,6 +70,15 @@ final class WebGuardAPIClient {
         }
     }
 
+    func operationsOverview(servicePage: Int = 1) async throws -> MobileOverviewPayload {
+        let response: MobileOverviewResponse = try await request(
+            "/mobile/overview?service_page=\(max(1, servicePage))",
+            method: "GET"
+        )
+
+        return response.data
+    }
+
     func listMobilePushDevices() async throws -> [MobilePushDevice] {
         let response: MobilePushDeviceListResponse = try await request("/mobile-push-devices", method: "GET")
         return response.data

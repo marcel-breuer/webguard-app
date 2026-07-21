@@ -5,6 +5,7 @@ import SwiftUI
 final class AppState: ObservableObject {
     @Published var session: StoredSession?
     @Published var monitors: [KnownMonitor] = []
+    @Published var overview = MobileOverviewPayload.fallback(monitors: [], events: [])
     @Published var events: [PushEvent] = []
     @Published var notificationPreferences: [String: MonitoringNotificationPreference] = [:]
     @Published var pendingMonitoringID: String?
@@ -30,6 +31,7 @@ final class AppState: ObservableObject {
         session = try? keychain.loadSession()
         monitors = cache.loadMonitors()
         events = cache.loadEvents()
+        overview = cache.loadOverview() ?? .fallback(monitors: monitors, events: events)
         notificationPreferences = cache.loadNotificationPreferences()
         lastMonitoringRefreshAt = cache.loadLastMonitoringRefreshAt()
         if session == nil {
@@ -105,6 +107,7 @@ final class AppState: ObservableObject {
             )
             let authenticatedClient = WebGuardAPIClient(serverURL: serverURL, token: loginData.token)
             let monitorings = try await authenticatedClient.listMonitorings()
+            let remoteOverview = try? await authenticatedClient.operationsOverview()
 
             let next = StoredSession(
                 serverURL: serverURL,
@@ -125,6 +128,10 @@ final class AppState: ObservableObject {
             lastMonitoringRefreshAt = refreshedAt
             isOffline = false
             monitors = monitorings
+            overview = remoteOverview ?? .fallback(monitors: monitorings, events: events)
+            if let remoteOverview {
+                cache.saveOverview(remoteOverview)
+            }
             saveWidgetSnapshot()
         } catch {
             errorMessage = error.localizedDescription
@@ -207,6 +214,7 @@ final class AppState: ObservableObject {
             cache.saveLastMonitoringRefreshAt(refreshedAt)
             lastMonitoringRefreshAt = refreshedAt
             isOffline = false
+            overview = .fallback(monitors: monitorings, events: events)
             saveWidgetSnapshot()
             updateLastAPICallAt()
         } catch WebGuardAPIError.unauthorized {
@@ -259,6 +267,40 @@ final class AppState: ObservableObject {
         }
 
         return nil
+    }
+
+    func refreshOverview() async {
+        guard let client = apiClient else {
+            return
+        }
+
+        do {
+            let nextOverview = try await client.operationsOverview()
+            overview = nextOverview
+            cache.saveOverview(nextOverview)
+            let nextMonitors = nextOverview.services.map { service in
+                KnownMonitor(
+                    id: service.id,
+                    name: service.name,
+                    target: service.target,
+                    status: service.status,
+                    lastSeenAt: service.lastCheckedAt ?? Date()
+                )
+            }
+            if !nextMonitors.isEmpty {
+                cache.saveMonitors(nextMonitors)
+                monitors = nextMonitors
+            }
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+        } catch {
+            isOffline = true
+            overview = .fallback(monitors: monitors, events: events)
+            errorMessage = error.localizedDescription
+        }
     }
 
     func loadNotificationPreferences() async {
@@ -332,6 +374,7 @@ final class AppState: ObservableObject {
         session = nil
         monitors = []
         events = []
+        overview = .fallback(monitors: [], events: [])
         notificationPreferences = [:]
         pendingMonitoringID = nil
         isOffline = false
@@ -349,6 +392,7 @@ final class AppState: ObservableObject {
         cache.addEvent(event)
         events = cache.loadEvents()
         monitors = cache.loadMonitors()
+        overview = .fallback(monitors: monitors, events: events)
         saveWidgetSnapshot()
     }
 

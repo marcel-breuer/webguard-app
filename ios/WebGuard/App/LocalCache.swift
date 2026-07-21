@@ -5,6 +5,7 @@ final class LocalCache {
 
     private let monitorsKey = "webguard.known-monitors"
     private let eventsKey = "webguard.notification-events"
+    private let overviewKey = "webguard.operations-overview"
     private let notificationPreferencesKey = "webguard.notification-preferences"
     private let lastMonitoringRefreshAtKey = "webguard.last-monitoring-refresh-at"
     private let encoder: JSONEncoder
@@ -81,9 +82,22 @@ final class LocalCache {
         UserDefaults.standard.set(date, forKey: lastMonitoringRefreshAtKey)
     }
 
+    func loadOverview() -> MobileOverviewPayload? {
+        guard let data = UserDefaults.standard.data(forKey: overviewKey) else {
+            return nil
+        }
+
+        return try? decoder.decode(MobileOverviewPayload.self, from: data)
+    }
+
+    func saveOverview(_ overview: MobileOverviewPayload) {
+        save(overview, key: overviewKey)
+    }
+
     func clear() {
         UserDefaults.standard.removeObject(forKey: monitorsKey)
         UserDefaults.standard.removeObject(forKey: eventsKey)
+        UserDefaults.standard.removeObject(forKey: overviewKey)
         UserDefaults.standard.removeObject(forKey: notificationPreferencesKey)
         UserDefaults.standard.removeObject(forKey: lastMonitoringRefreshAtKey)
     }
