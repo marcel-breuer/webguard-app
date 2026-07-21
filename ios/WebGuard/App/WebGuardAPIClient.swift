@@ -18,7 +18,24 @@ enum WebGuardAPIError: LocalizedError {
     }
 }
 
-final class WebGuardAPIClient {
+protocol WebGuardAPIClientProtocol {
+    func logout() async throws
+    func listMonitorings() async throws -> [KnownMonitor]
+    func operationsOverview(servicePage: Int) async throws -> MobileOverviewPayload
+    func registerAPNsDevice(token apnsToken: String, existingDeviceID: String?) async throws -> MobilePushDevice
+    func updateMobilePushDevice(deviceID: String, enabled: Bool) async throws -> MobilePushDevice
+    func revokeMobilePushDevice(deviceID: String) async throws
+    func monitoringStatus(monitorID: String) async throws -> MonitoringStatusPayload
+    func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference
+    func updateMonitoringNotificationPreference(
+        monitoringID: String,
+        notificationOnFailure: Bool,
+        notificationChannels: [String],
+        sslExpiryWarningDays: Int
+    ) async throws -> MonitoringNotificationPreference
+}
+
+final class WebGuardAPIClient: WebGuardAPIClientProtocol {
     let serverURL: URL
     private let token: String?
     private let urlSession: URLSession

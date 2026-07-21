@@ -1,6 +1,21 @@
 import Foundation
 
-final class LocalCache {
+protocol CacheStore {
+    func loadMonitors() -> [KnownMonitor]
+    func saveMonitors(_ monitors: [KnownMonitor])
+    func upsertMonitor(_ monitor: KnownMonitor)
+    func loadEvents() -> [PushEvent]
+    func addEvent(_ event: PushEvent)
+    func loadNotificationPreferences() -> [String: MonitoringNotificationPreference]
+    func saveNotificationPreferences(_ preferences: [String: MonitoringNotificationPreference])
+    func loadLastMonitoringRefreshAt() -> Date?
+    func saveLastMonitoringRefreshAt(_ date: Date)
+    func loadOverview() -> MobileOverviewPayload?
+    func saveOverview(_ overview: MobileOverviewPayload)
+    func clear()
+}
+
+final class LocalCache: CacheStore {
     static let shared = LocalCache()
 
     private let monitorsKey = "webguard.known-monitors"
@@ -8,10 +23,12 @@ final class LocalCache {
     private let overviewKey = "webguard.operations-overview"
     private let notificationPreferencesKey = "webguard.notification-preferences"
     private let lastMonitoringRefreshAtKey = "webguard.last-monitoring-refresh-at"
+    private let defaults: UserDefaults
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    private init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         decoder = JSONDecoder()
@@ -19,7 +36,7 @@ final class LocalCache {
     }
 
     func loadMonitors() -> [KnownMonitor] {
-        guard let data = UserDefaults.standard.data(forKey: monitorsKey),
+        guard let data = defaults.data(forKey: monitorsKey),
               let value = try? decoder.decode([KnownMonitor].self, from: data) else {
             return []
         }
@@ -37,7 +54,7 @@ final class LocalCache {
     }
 
     func loadEvents() -> [PushEvent] {
-        guard let data = UserDefaults.standard.data(forKey: eventsKey),
+        guard let data = defaults.data(forKey: eventsKey),
               let value = try? decoder.decode([PushEvent].self, from: data) else {
             return []
         }
@@ -62,7 +79,7 @@ final class LocalCache {
     }
 
     func loadNotificationPreferences() -> [String: MonitoringNotificationPreference] {
-        guard let data = UserDefaults.standard.data(forKey: notificationPreferencesKey),
+        guard let data = defaults.data(forKey: notificationPreferencesKey),
               let value = try? decoder.decode([String: MonitoringNotificationPreference].self, from: data) else {
             return [:]
         }
@@ -75,15 +92,15 @@ final class LocalCache {
     }
 
     func loadLastMonitoringRefreshAt() -> Date? {
-        UserDefaults.standard.object(forKey: lastMonitoringRefreshAtKey) as? Date
+        defaults.object(forKey: lastMonitoringRefreshAtKey) as? Date
     }
 
     func saveLastMonitoringRefreshAt(_ date: Date) {
-        UserDefaults.standard.set(date, forKey: lastMonitoringRefreshAtKey)
+        defaults.set(date, forKey: lastMonitoringRefreshAtKey)
     }
 
     func loadOverview() -> MobileOverviewPayload? {
-        guard let data = UserDefaults.standard.data(forKey: overviewKey) else {
+        guard let data = defaults.data(forKey: overviewKey) else {
             return nil
         }
 
@@ -95,11 +112,11 @@ final class LocalCache {
     }
 
     func clear() {
-        UserDefaults.standard.removeObject(forKey: monitorsKey)
-        UserDefaults.standard.removeObject(forKey: eventsKey)
-        UserDefaults.standard.removeObject(forKey: overviewKey)
-        UserDefaults.standard.removeObject(forKey: notificationPreferencesKey)
-        UserDefaults.standard.removeObject(forKey: lastMonitoringRefreshAtKey)
+        defaults.removeObject(forKey: monitorsKey)
+        defaults.removeObject(forKey: eventsKey)
+        defaults.removeObject(forKey: overviewKey)
+        defaults.removeObject(forKey: notificationPreferencesKey)
+        defaults.removeObject(forKey: lastMonitoringRefreshAtKey)
     }
 
     private func save<T: Encodable>(_ value: T, key: String) {
@@ -107,6 +124,6 @@ final class LocalCache {
             return
         }
 
-        UserDefaults.standard.set(data, forKey: key)
+        defaults.set(data, forKey: key)
     }
 }

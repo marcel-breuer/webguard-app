@@ -34,6 +34,7 @@ struct OperationsOverviewView: View {
                 .padding(20)
                 .webGuardContentWidth(1080)
             }
+            .accessibilityIdentifier(WebGuardAccessibilityID.overview)
             .background(Brand.background)
             .refreshable {
                 await appState.refreshOverview()
@@ -175,6 +176,7 @@ private struct HealthSummaryCard: View {
             }
         }
         .webGuardCard()
+        .accessibilityIdentifier(WebGuardAccessibilityID.overviewHealthSummary)
     }
 
     private var stateColor: Color {
@@ -237,11 +239,14 @@ private struct AttentionCard: View {
                         AttentionRow(item: item)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier(WebGuardAccessibilityID.attention(item.id))
                 } else {
                     AttentionRow(item: item)
+                        .accessibilityIdentifier(WebGuardAccessibilityID.attention(item.id))
                 }
             }
         }
+        .accessibilityIdentifier(WebGuardAccessibilityID.overviewAttention)
     }
 
     private func monitor(for item: OverviewAttention) -> KnownMonitor? {
@@ -305,11 +310,13 @@ private struct ServiceLandscapeCard: View {
                             ServiceLandscapeRow(service: service)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier(WebGuardAccessibilityID.service(service.id))
                     }
                 }
                 .padding(.bottom, 5)
             }
         }
+        .accessibilityIdentifier(WebGuardAccessibilityID.overviewServiceLandscape)
     }
 
     private var groupedServices: [(key: String, value: [OverviewService])] {
@@ -473,6 +480,7 @@ private struct NextActionCard: View {
                 .stroke(Brand.accent.opacity(0.15), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 20))
+        .accessibilityIdentifier(WebGuardAccessibilityID.overviewNextAction)
     }
 
     private var actionTitle: String {

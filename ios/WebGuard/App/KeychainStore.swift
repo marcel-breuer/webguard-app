@@ -7,7 +7,13 @@ enum KeychainStoreError: Error {
     case unexpectedStatus(OSStatus)
 }
 
-final class KeychainStore {
+protocol SessionStore {
+    func loadSession() throws -> StoredSession?
+    func saveSession(_ session: StoredSession) throws
+    func clearSession() throws
+}
+
+final class KeychainStore: SessionStore {
     static let shared = KeychainStore()
 
     private let service = "com.example.webguard"

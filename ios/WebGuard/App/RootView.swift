@@ -43,39 +43,43 @@ struct MainTabsView: View {
     @State private var selectedDestination: MainDestination? = .overview
 
     var body: some View {
-        if horizontalSizeClass == .regular {
-            NavigationSplitView {
-                List(selection: $selectedDestination) {
-                    ForEach(MainDestination.allCases) { destination in
-                        Label(destination.title, systemImage: destination.systemImage)
-                            .tag(destination as MainDestination?)
+        Group {
+            if horizontalSizeClass == .regular {
+                NavigationSplitView {
+                    List(selection: $selectedDestination) {
+                        ForEach(MainDestination.allCases) { destination in
+                            Label(destination.title, systemImage: destination.systemImage)
+                                .tag(destination as MainDestination?)
+                        }
                     }
+                    .navigationTitle("WebGuard")
+                    .listStyle(.sidebar)
+                } detail: {
+                    destinationView(selectedDestination ?? .overview)
                 }
-                .navigationTitle("WebGuard")
-                .listStyle(.sidebar)
-            } detail: {
-                destinationView(selectedDestination ?? .overview)
-            }
-        } else {
-            TabView(selection: $selectedDestination) {
-                destinationView(.overview)
-                    .tabItem { Label(MainDestination.overview.title, systemImage: MainDestination.overview.systemImage) }
-                    .tag(MainDestination.overview as MainDestination?)
-                destinationView(.monitorings)
-                    .tabItem { Label(MainDestination.monitorings.title, systemImage: MainDestination.monitorings.systemImage) }
-                    .tag(MainDestination.monitorings as MainDestination?)
-                destinationView(.notifications)
-                    .tabItem { Label(MainDestination.notifications.title, systemImage: MainDestination.notifications.systemImage) }
-                    .tag(MainDestination.notifications as MainDestination?)
-                destinationView(.settings)
-                    .tabItem { Label(MainDestination.settings.title, systemImage: MainDestination.settings.systemImage) }
-                    .tag(MainDestination.settings as MainDestination?)
-            }
-            .tint(Brand.accent)
-            .onChange(of: appState.pendingMonitoringID) { _, monitoringID in
-                if monitoringID != nil {
-                    selectedDestination = .monitorings
+                .accessibilityIdentifier(WebGuardAccessibilityID.mainNavigation)
+            } else {
+                TabView(selection: $selectedDestination) {
+                    destinationView(.overview)
+                        .tabItem { Label(MainDestination.overview.title, systemImage: MainDestination.overview.systemImage) }
+                        .tag(MainDestination.overview as MainDestination?)
+                    destinationView(.monitorings)
+                        .tabItem { Label(MainDestination.monitorings.title, systemImage: MainDestination.monitorings.systemImage) }
+                        .tag(MainDestination.monitorings as MainDestination?)
+                    destinationView(.notifications)
+                        .tabItem { Label(MainDestination.notifications.title, systemImage: MainDestination.notifications.systemImage) }
+                        .tag(MainDestination.notifications as MainDestination?)
+                    destinationView(.settings)
+                        .tabItem { Label(MainDestination.settings.title, systemImage: MainDestination.settings.systemImage) }
+                        .tag(MainDestination.settings as MainDestination?)
                 }
+                .tint(Brand.accent)
+                .accessibilityIdentifier(WebGuardAccessibilityID.mainNavigation)
+            }
+        }
+        .onChange(of: appState.pendingMonitoringID) { _, monitoringID in
+            if monitoringID != nil {
+                selectedDestination = .monitorings
             }
         }
     }

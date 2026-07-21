@@ -48,6 +48,7 @@ struct SettingsView: View {
                             ))
                             .labelsHidden()
                             .tint(Brand.accent)
+                            .accessibilityIdentifier(WebGuardAccessibilityID.pushToggle)
                         }
                         .padding(.bottom, 16)
 
@@ -119,11 +120,13 @@ struct SettingsView: View {
                             .font(.system(size: 16, weight: .bold, design: .rounded))
                             .frame(maxWidth: .infinity)
                     }
+                    .accessibilityIdentifier(WebGuardAccessibilityID.signOut)
                     .padding(.vertical, 12)
                 }
                 .padding(20)
                 .webGuardContentWidth(860)
             }
+            .accessibilityIdentifier(WebGuardAccessibilityID.settings)
             .background(Brand.background)
             .navigationTitle("Einstellungen")
             .navigationBarTitleDisplayMode(.inline)
@@ -172,6 +175,7 @@ struct MonitoringNotificationPreferenceRow: View {
                 .labelsHidden()
                 .tint(Brand.accent)
                 .disabled(appState.isBusy)
+                .accessibilityIdentifier(WebGuardAccessibilityID.notificationPreference(monitor.id))
             }
         }
         .padding(.vertical, 12)
