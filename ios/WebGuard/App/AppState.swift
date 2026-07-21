@@ -7,13 +7,18 @@ final class AppState: ObservableObject {
     @Published var monitors: [KnownMonitor] = []
     @Published var overview = MobileOverviewPayload.fallback(monitors: [], events: [])
     @Published var events: [PushEvent] = []
+    @Published var notificationPreferences: [String: MonitoringNotificationPreference] = [:]
+    @Published var pendingMonitoringID: String?
+    @Published var isOffline = false
+    @Published var lastMonitoringRefreshAt: Date?
     @Published var errorMessage: String?
     @Published var isBusy = false
 
     private let keychain: KeychainStore
     private let cache: LocalCache
     private let apnsService: APNsService
-    private static let defaultServerURL = URL(string: "https://webguard.example.com")!
+    private static let defaultServerURL = URL(string: "https://app.webguard.marcel-breuer.dev")!
+    private static let monitoringFreshnessWindow: TimeInterval = 5 * 60
 
     convenience init() {
         self.init(keychain: .shared, cache: .shared, apnsService: .shared)
@@ -27,6 +32,13 @@ final class AppState: ObservableObject {
         monitors = cache.loadMonitors()
         events = cache.loadEvents()
         overview = cache.loadOverview() ?? .fallback(monitors: monitors, events: events)
+        notificationPreferences = cache.loadNotificationPreferences()
+        lastMonitoringRefreshAt = cache.loadLastMonitoringRefreshAt()
+        if session == nil {
+            WidgetSnapshotStore.clear()
+        } else {
+            saveWidgetSnapshot()
+        }
 
         NotificationCenter.default.addObserver(
             forName: .didReceivePushEvent,
@@ -39,6 +51,20 @@ final class AppState: ObservableObject {
 
             Task { @MainActor in
                 self?.handlePushEvent(event)
+            }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .didOpenPushEvent,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let event = notification.object as? PushEvent else {
+                return
+            }
+
+            Task { @MainActor in
+                self?.pendingMonitoringID = event.monitoringID
             }
         }
     }
@@ -97,11 +123,16 @@ final class AppState: ObservableObject {
             try keychain.saveSession(next)
             session = next
             cache.saveMonitors(monitorings)
+            let refreshedAt = Date()
+            cache.saveLastMonitoringRefreshAt(refreshedAt)
+            lastMonitoringRefreshAt = refreshedAt
+            isOffline = false
             monitors = monitorings
             overview = remoteOverview ?? .fallback(monitors: monitorings, events: events)
             if let remoteOverview {
                 cache.saveOverview(remoteOverview)
             }
+            saveWidgetSnapshot()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -179,14 +210,63 @@ final class AppState: ObservableObject {
             let monitorings = try await client.listMonitorings()
             cache.saveMonitors(monitorings)
             monitors = monitorings
+            let refreshedAt = Date()
+            cache.saveLastMonitoringRefreshAt(refreshedAt)
+            lastMonitoringRefreshAt = refreshedAt
+            isOffline = false
             overview = .fallback(monitors: monitorings, events: events)
+            saveWidgetSnapshot()
             updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+        } catch {
+            isOffline = true
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    var isMonitoringDataStale: Bool {
+        guard let lastMonitoringRefreshAt else {
+            return !monitors.isEmpty
+        }
+
+        return Date().timeIntervalSince(lastMonitoringRefreshAt) > Self.monitoringFreshnessWindow
+    }
+
+    func refreshMonitoring(_ monitoringID: String) async -> KnownMonitor? {
+        guard let client = apiClient else {
+            return nil
+        }
+
+        do {
+            let payload = try await client.monitoringStatus(monitorID: monitoringID)
+            guard let index = monitors.firstIndex(where: { $0.id == monitoringID }) else {
+                return nil
+            }
+
+            var monitor = monitors[index]
+            monitor.status = payload.status ?? payload.statusLabel ?? monitor.status
+            if let checkedAt = payload.checkedAt,
+               let date = ISO8601DateFormatter().date(from: checkedAt) {
+                monitor.lastSeenAt = date
+            } else {
+                monitor.lastSeenAt = Date()
+            }
+
+            monitors[index] = monitor
+            cache.upsertMonitor(monitor)
+            saveWidgetSnapshot()
+            updateLastAPICallAt()
+            return monitor
         } catch WebGuardAPIError.unauthorized {
             await signOut()
             errorMessage = WebGuardAPIError.unauthorized.localizedDescription
         } catch {
             errorMessage = error.localizedDescription
         }
+
+        return nil
     }
 
     func refreshOverview() async {
@@ -211,12 +291,71 @@ final class AppState: ObservableObject {
                 cache.saveMonitors(nextMonitors)
                 monitors = nextMonitors
             }
+            isOffline = false
             updateLastAPICallAt()
         } catch WebGuardAPIError.unauthorized {
             await signOut()
             errorMessage = WebGuardAPIError.unauthorized.localizedDescription
         } catch {
+            isOffline = true
             overview = .fallback(monitors: monitors, events: events)
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadNotificationPreferences() async {
+        guard let client = apiClient else {
+            return
+        }
+
+        for monitor in monitors {
+            do {
+                let preference = try await client.monitoringNotificationPreference(monitorID: monitor.id)
+                notificationPreferences[monitor.id] = preference
+                cache.saveNotificationPreferences(notificationPreferences)
+            } catch WebGuardAPIError.unauthorized {
+                await signOut()
+                errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+                return
+            } catch {
+                errorMessage = error.localizedDescription
+                return
+            }
+        }
+    }
+
+    func setMonitoringNotificationEnabled(_ enabled: Bool, monitoringID: String) async {
+        guard let client = apiClient,
+              let previous = notificationPreferences[monitoringID] else {
+            return
+        }
+
+        var optimistic = previous
+        optimistic.notificationOnFailure = enabled
+        notificationPreferences[monitoringID] = optimistic
+        cache.saveNotificationPreferences(notificationPreferences)
+
+        isBusy = true
+        defer { isBusy = false }
+
+        do {
+            let updated = try await client.updateMonitoringNotificationPreference(
+                monitoringID: monitoringID,
+                notificationOnFailure: enabled,
+                notificationChannels: previous.notificationChannels,
+                sslExpiryWarningDays: previous.sslExpiryWarningDays
+            )
+            notificationPreferences[monitoringID] = updated
+            cache.saveNotificationPreferences(notificationPreferences)
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            notificationPreferences[monitoringID] = previous
+            cache.saveNotificationPreferences(notificationPreferences)
+            await signOut()
+            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+        } catch {
+            notificationPreferences[monitoringID] = previous
+            cache.saveNotificationPreferences(notificationPreferences)
             errorMessage = error.localizedDescription
         }
     }
@@ -236,6 +375,17 @@ final class AppState: ObservableObject {
         monitors = []
         events = []
         overview = .fallback(monitors: [], events: [])
+        notificationPreferences = [:]
+        pendingMonitoringID = nil
+        isOffline = false
+        lastMonitoringRefreshAt = nil
+        WidgetSnapshotStore.clear()
+    }
+
+    func handleDeepLink(_ url: URL) {
+        if let monitoringID = WidgetDeepLink.monitoringID(from: url) {
+            pendingMonitoringID = monitoringID
+        }
     }
 
     private func handlePushEvent(_ event: PushEvent) {
@@ -243,6 +393,7 @@ final class AppState: ObservableObject {
         events = cache.loadEvents()
         monitors = cache.loadMonitors()
         overview = .fallback(monitors: monitors, events: events)
+        saveWidgetSnapshot()
     }
 
     private func persist(_ next: StoredSession) {
@@ -261,5 +412,20 @@ final class AppState: ObservableObject {
 
         next.lastAPICallAt = Date()
         persist(next)
+    }
+
+    private func saveWidgetSnapshot() {
+        WidgetSnapshotStore.save(
+            monitors: monitors.map { monitor in
+                WidgetMonitorSnapshot(
+                    id: monitor.id,
+                    name: monitor.name,
+                    target: monitor.target,
+                    status: monitor.status ?? "",
+                    isDown: monitor.tone == .down,
+                    isMaintenance: monitor.tone == .maintenance
+                )
+            }
+        )
     }
 }

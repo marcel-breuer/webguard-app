@@ -20,6 +20,9 @@ struct RootView: View {
         } message: {
             Text(appState.errorMessage ?? "")
         }
+        .onOpenURL { url in
+            appState.handleDeepLink(url)
+        }
     }
 
     private var errorBinding: Binding<Bool> {
@@ -35,6 +38,7 @@ struct RootView: View {
 }
 
 struct MainTabsView: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedDestination: MainDestination? = .overview
 
@@ -56,18 +60,23 @@ struct MainTabsView: View {
             TabView(selection: $selectedDestination) {
                 destinationView(.overview)
                     .tabItem { Label(MainDestination.overview.title, systemImage: MainDestination.overview.systemImage) }
-                    .tag(MainDestination.overview)
+                    .tag(MainDestination.overview as MainDestination?)
                 destinationView(.monitorings)
                     .tabItem { Label(MainDestination.monitorings.title, systemImage: MainDestination.monitorings.systemImage) }
-                    .tag(MainDestination.monitorings)
+                    .tag(MainDestination.monitorings as MainDestination?)
                 destinationView(.notifications)
                     .tabItem { Label(MainDestination.notifications.title, systemImage: MainDestination.notifications.systemImage) }
-                    .tag(MainDestination.notifications)
+                    .tag(MainDestination.notifications as MainDestination?)
                 destinationView(.settings)
                     .tabItem { Label(MainDestination.settings.title, systemImage: MainDestination.settings.systemImage) }
-                    .tag(MainDestination.settings)
+                    .tag(MainDestination.settings as MainDestination?)
             }
             .tint(Brand.accent)
+            .onChange(of: appState.pendingMonitoringID) { _, monitoringID in
+                if monitoringID != nil {
+                    selectedDestination = .monitorings
+                }
+            }
         }
     }
 

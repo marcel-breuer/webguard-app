@@ -6,6 +6,8 @@ final class LocalCache {
     private let monitorsKey = "webguard.known-monitors"
     private let eventsKey = "webguard.notification-events"
     private let overviewKey = "webguard.operations-overview"
+    private let notificationPreferencesKey = "webguard.notification-preferences"
+    private let lastMonitoringRefreshAtKey = "webguard.last-monitoring-refresh-at"
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
@@ -52,8 +54,32 @@ final class LocalCache {
             name: event.monitoringName,
             target: event.monitoringTarget,
             status: event.eventType == "recovery" ? "up" : event.eventType == "incident" ? "down" : nil,
-            lastSeenAt: event.occurredAt
+            lastSeenAt: event.occurredAt,
+            maintenanceActive: nil,
+            maintenanceFrom: nil,
+            maintenanceUntil: nil
         ))
+    }
+
+    func loadNotificationPreferences() -> [String: MonitoringNotificationPreference] {
+        guard let data = UserDefaults.standard.data(forKey: notificationPreferencesKey),
+              let value = try? decoder.decode([String: MonitoringNotificationPreference].self, from: data) else {
+            return [:]
+        }
+
+        return value
+    }
+
+    func saveNotificationPreferences(_ preferences: [String: MonitoringNotificationPreference]) {
+        save(preferences, key: notificationPreferencesKey)
+    }
+
+    func loadLastMonitoringRefreshAt() -> Date? {
+        UserDefaults.standard.object(forKey: lastMonitoringRefreshAtKey) as? Date
+    }
+
+    func saveLastMonitoringRefreshAt(_ date: Date) {
+        UserDefaults.standard.set(date, forKey: lastMonitoringRefreshAtKey)
     }
 
     func loadOverview() -> MobileOverviewPayload? {
@@ -72,6 +98,8 @@ final class LocalCache {
         UserDefaults.standard.removeObject(forKey: monitorsKey)
         UserDefaults.standard.removeObject(forKey: eventsKey)
         UserDefaults.standard.removeObject(forKey: overviewKey)
+        UserDefaults.standard.removeObject(forKey: notificationPreferencesKey)
+        UserDefaults.standard.removeObject(forKey: lastMonitoringRefreshAtKey)
     }
 
     private func save<T: Encodable>(_ value: T, key: String) {

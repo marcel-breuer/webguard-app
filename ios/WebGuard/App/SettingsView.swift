@@ -75,6 +75,33 @@ struct SettingsView: View {
                     .webGuardCard()
 
                     VStack(alignment: .leading, spacing: 0) {
+                        Text("Monitoring-Benachrichtigungen")
+                            .font(.system(size: 20, weight: .black, design: .rounded))
+                            .foregroundStyle(Brand.text)
+                            .padding(.bottom, 8)
+
+                        Text("Steuere kritische Vorfälle pro Monitoring. Das globale Push-Setting bleibt zusätzlich aktiv.")
+                            .font(.system(size: 15, design: .rounded))
+                            .foregroundStyle(Brand.mutedText)
+                            .padding(.bottom, 12)
+
+                        if appState.monitors.isEmpty {
+                            Text("Keine Monitorings geladen.")
+                                .font(.system(size: 15, design: .rounded))
+                                .foregroundStyle(Brand.mutedText)
+                                .padding(.vertical, 10)
+                        } else {
+                            ForEach(appState.monitors) { monitor in
+                                MonitoringNotificationPreferenceRow(monitor: monitor)
+                                if monitor.id != appState.monitors.last?.id {
+                                    Divider().background(Brand.border)
+                                }
+                            }
+                        }
+                    }
+                    .webGuardCard()
+
+                    VStack(alignment: .leading, spacing: 0) {
                         Text("Geräteregistrierung")
                             .font(.system(size: 20, weight: .black, design: .rounded))
                             .foregroundStyle(Brand.text)
@@ -100,6 +127,66 @@ struct SettingsView: View {
             .background(Brand.background)
             .navigationTitle("Einstellungen")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                await appState.loadNotificationPreferences()
+            }
+        }
+    }
+}
+
+struct MonitoringNotificationPreferenceRow: View {
+    @EnvironmentObject private var appState: AppState
+    let monitor: KnownMonitor
+
+    private var preference: MonitoringNotificationPreference? {
+        appState.notificationPreferences[monitor.id]
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            SettingsIcon(systemName: "bell", color: toneColor)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(monitor.name)
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .foregroundStyle(Brand.text)
+                    .lineLimit(1)
+                Text(preference == nil ? "Wird geladen" : preference!.notificationOnFailure ? "Vorfälle aktiviert" : "Vorfälle stummgeschaltet")
+                    .font(.system(size: 14, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+            }
+
+            Spacer()
+
+            if preference == nil {
+                ProgressView()
+            } else {
+                Toggle("", isOn: Binding(
+                    get: { preference?.notificationOnFailure ?? false },
+                    set: { enabled in
+                        Task {
+                            await appState.setMonitoringNotificationEnabled(enabled, monitoringID: monitor.id)
+                        }
+                    }
+                ))
+                .labelsHidden()
+                .tint(Brand.accent)
+                .disabled(appState.isBusy)
+            }
+        }
+        .padding(.vertical, 12)
+    }
+
+    private var toneColor: Color {
+        switch monitor.tone {
+        case .down:
+            return Brand.danger
+        case .maintenance:
+            return Brand.warning
+        case .up:
+            return Brand.success
+        case .unknown:
+            return Brand.accent
         }
     }
 }

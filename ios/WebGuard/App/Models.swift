@@ -35,12 +35,15 @@ struct MobilePushDevice: Codable, Identifiable, Equatable {
     }
 }
 
-struct KnownMonitor: Codable, Identifiable, Equatable {
+struct KnownMonitor: Codable, Identifiable, Equatable, Hashable {
     var id: String
     var name: String
     var target: String
     var status: String?
     var lastSeenAt: Date
+    var maintenanceActive: Bool? = nil
+    var maintenanceFrom: Date? = nil
+    var maintenanceUntil: Date? = nil
 }
 
 struct PushEvent: Codable, Identifiable, Equatable {
@@ -354,6 +357,53 @@ struct MonitoringSummary: Decodable, Identifiable {
     var name: String
     var target: String
     var status: String?
+    var maintenanceActive: Bool?
+    var maintenanceFrom: Date?
+    var maintenanceUntil: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case target
+        case status
+        case maintenanceActive = "maintenance_active"
+        case maintenanceFrom = "maintenance_from"
+        case maintenanceUntil = "maintenance_until"
+    }
+}
+
+struct MonitoringNotificationPreference: Codable, Identifiable, Equatable, Hashable {
+    var monitoringID: String
+    var notificationOnFailure: Bool
+    var notificationChannels: [String]
+    var sslExpiryWarningDays: Int
+
+    var id: String {
+        monitoringID
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case monitoringID = "monitoring_id"
+        case notificationOnFailure = "notification_on_failure"
+        case notificationChannels = "notification_channels"
+        case sslExpiryWarningDays = "ssl_expiry_warning_days"
+    }
+}
+
+struct MonitoringNotificationPreferenceResponse: Decodable {
+    var data: MonitoringNotificationPreference
+}
+
+struct MonitoringNotificationPreferenceUpdatePayload: Encodable {
+    var notificationOnFailure: Bool
+    var notificationChannels: [String]
+    var sslExpiryWarningDays: Int
+
+    enum CodingKeys: String, CodingKey {
+        case notificationOnFailure = "notification_on_failure"
+        case notificationChannels = "notification_channels"
+        case sslExpiryWarningDays = "ssl_expiry_warning_days"
+    }
 }
 
 struct MobileLoginPayload: Encodable {
@@ -427,7 +477,7 @@ enum MonitorTone {
     case unknown
 }
 
-extension MonitorTone: Codable {
+extension MonitorTone {
     var rawValue: String {
         switch self {
         case .up: return "up"
@@ -445,20 +495,29 @@ extension MonitorTone: Codable {
         default: self = .unknown
         }
     }
+}
 
-    public init(from decoder: Decoder) throws {
-        self = MonitorTone(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
-    }
+enum MaintenanceWindowState: Equatable {
+    case active
+    case upcoming
 
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
+    var title: String {
+        switch self {
+        case .active:
+            return "Aktiv"
+        case .upcoming:
+            return "Geplant"
+        }
     }
 }
 
 extension KnownMonitor {
     var tone: MonitorTone {
         let value = (status ?? "").lowercased()
+
+        if maintenanceWindowState == .active {
+            return .maintenance
+        }
 
         if value.contains("down") || value.contains("fail") {
             return .down
@@ -473,5 +532,21 @@ extension KnownMonitor {
         }
 
         return .unknown
+    }
+
+    var maintenanceWindowState: MaintenanceWindowState? {
+        let now = Date()
+
+        if maintenanceActive == true
+            || (maintenanceFrom.map { $0 <= now } == true
+                && (maintenanceUntil == nil || maintenanceUntil.map { $0 > now } == true)) {
+            return .active
+        }
+
+        if maintenanceFrom.map({ $0 > now }) == true {
+            return .upcoming
+        }
+
+        return nil
     }
 }

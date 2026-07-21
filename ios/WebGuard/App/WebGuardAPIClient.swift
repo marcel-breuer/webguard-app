@@ -62,7 +62,10 @@ final class WebGuardAPIClient {
                 name: monitoring.name,
                 target: monitoring.target,
                 status: monitoring.status,
-                lastSeenAt: Date()
+                lastSeenAt: Date(),
+                maintenanceActive: monitoring.maintenanceActive,
+                maintenanceFrom: monitoring.maintenanceFrom,
+                maintenanceUntil: monitoring.maintenanceUntil
             )
         }
     }
@@ -112,6 +115,33 @@ final class WebGuardAPIClient {
 
     func monitoringStatus(monitorID: String) async throws -> MonitoringStatusPayload {
         try await request("/monitorings/\(monitorID)/status", method: "GET")
+    }
+
+    func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
+        let response: MonitoringNotificationPreferenceResponse = try await request(
+            "/monitorings/\(monitorID)/notification-preferences",
+            method: "GET"
+        )
+        return response.data
+    }
+
+    func updateMonitoringNotificationPreference(
+        monitoringID: String,
+        notificationOnFailure: Bool,
+        notificationChannels: [String],
+        sslExpiryWarningDays: Int
+    ) async throws -> MonitoringNotificationPreference {
+        let payload = MonitoringNotificationPreferenceUpdatePayload(
+            notificationOnFailure: notificationOnFailure,
+            notificationChannels: notificationChannels,
+            sslExpiryWarningDays: sslExpiryWarningDays
+        )
+        let response: MonitoringNotificationPreferenceResponse = try await request(
+            "/monitorings/\(monitoringID)/notification-preferences",
+            method: "PATCH",
+            body: payload
+        )
+        return response.data
     }
 
     private func request<Response: Decodable>(
@@ -228,8 +258,8 @@ private struct EmptyResponse: Decodable {}
 private extension URL {
     func normalizedWebGuardBaseURL() -> URL {
         var components = URLComponents(url: self, resolvingAgainstBaseURL: false)
-        let normalizedPath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
-        components?.path = normalizedPath
+        let trimmedPath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
+        components?.path = trimmedPath.isEmpty ? "" : "/\(trimmedPath)"
         components?.query = nil
         components?.fragment = nil
         return components?.url ?? self

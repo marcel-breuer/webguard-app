@@ -21,12 +21,33 @@
 		4A000001000000000000000C /* MonitoringListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A000001000000000000010C /* MonitoringListView.swift */; };
 		4A000001000000000000000D /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A000001000000000000010D /* NotificationsView.swift */; };
 		4A000001000000000000000E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A000001000000000000010E /* SettingsView.swift */; };
-		4A0000010000000010000011 /* OperationsOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000010000115 /* OperationsOverviewView.swift */; };
-		4A0000010000000010000012 /* MonitoringDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000010000116 /* MonitoringDetailView.swift */; };
 		4A000001000000000000000F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4A000001000000000000010F /* Assets.xcassets */; };
 		4A0000010000000000000010 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000000000114 /* PrivacyInfo.xcprivacy */; };
-		4A0000010000000010000013 /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000010000117 /* ModelsTests.swift */; };
+		4A0000010000000000000011 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000000000118 /* WidgetSnapshot.swift */; };
+		4A0000010000000000000012 /* WebGuardWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000000000116 /* WebGuardWidget.swift */; };
+		4A0000010000000000000013 /* WidgetSnapshot.swift in Widget Sources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000000000118 /* WidgetSnapshot.swift */; };
+		4A0000010000000000000014 /* WebGuardWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4A0000010000000000000115 /* WebGuardWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4A0000020000000000000001 /* WebGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000020000000000000101 /* WebGuardTests.swift */; };
+		4A0000020000000000000002 /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000020000000000000102 /* ModelsTests.swift */; };
+		4A0000010000000010000015 /* OperationsOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000010000119 /* OperationsOverviewView.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4A0000020000000000000800 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4A0000010000000000000401 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4A0000010000000000000400;
+			remoteInfo = WebGuard;
+		};
+		4A0000030000000000000800 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4A0000010000000000000401 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4A0000030000000000000402;
+			remoteInfo = WebGuardWidget;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		4A0000010000000000000100 /* WebGuard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WebGuard.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -44,16 +65,21 @@
 		4A000001000000000000010C /* MonitoringListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringListView.swift; sourceTree = "<group>"; };
 		4A000001000000000000010D /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
 		4A000001000000000000010E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		4A0000010000000010000115 /* OperationsOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperationsOverviewView.swift; sourceTree = "<group>"; };
-		4A0000010000000010000116 /* MonitoringDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringDetailView.swift; sourceTree = "<group>"; };
 		4A000001000000000000010F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4A0000010000000000000110 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4A0000010000000000000111 /* WebGuard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WebGuard.entitlements; sourceTree = "<group>"; };
 		4A0000010000000000000112 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Debug.xcconfig; sourceTree = "<group>"; };
 		4A0000010000000000000113 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Release.xcconfig; sourceTree = "<group>"; };
 		4A0000010000000000000114 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		4A0000010000000010000117 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
-		4A0000010000000010000101 /* WebGuardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WebGuardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A0000010000000000000115 /* WebGuardWidget.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; includeInIndex = 0; path = WebGuardWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A0000010000000000000116 /* WebGuardWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebGuardWidget.swift; sourceTree = "<group>"; };
+		4A0000010000000000000117 /* WebGuardWidget Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4A0000010000000000000118 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshot.swift; sourceTree = "<group>"; };
+		4A000001000000000000011A /* WebGuardWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WebGuardWidget.entitlements; sourceTree = "<group>"; };
+		4A0000020000000000000100 /* WebGuardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WebGuardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A0000020000000000000101 /* WebGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebGuardTests.swift; sourceTree = "<group>"; };
+		4A0000020000000000000102 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
+		4A0000010000000010000119 /* OperationsOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperationsOverviewView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,7 +90,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4A0000010000000010000201 /* Frameworks */ = {
+		4A0000020000000000000200 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A0000030000000000000201 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -78,7 +111,8 @@
 			isa = PBXGroup;
 			children = (
 				4A0000010000000000000301 /* WebGuard */,
-				4A0000010000000010000304 /* WebGuardTests */,
+				4A0000020000000000000300 /* WebGuardTests */,
+				4A0000030000000000000304 /* WebGuardWidget */,
 				4A0000010000000000000302 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -101,7 +135,8 @@
 			isa = PBXGroup;
 			children = (
 				4A0000010000000000000100 /* WebGuard.app */,
-				4A0000010000000010000101 /* WebGuardTests.xctest */,
+				4A0000020000000000000100 /* WebGuardTests.xctest */,
+				4A0000010000000000000115 /* WebGuardWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -123,16 +158,27 @@
 				4A000001000000000000010C /* MonitoringListView.swift */,
 				4A000001000000000000010D /* NotificationsView.swift */,
 				4A000001000000000000010E /* SettingsView.swift */,
-				4A0000010000000010000115 /* OperationsOverviewView.swift */,
-				4A0000010000000010000116 /* MonitoringDetailView.swift */,
+				4A0000010000000000000118 /* WidgetSnapshot.swift */,
+				4A0000010000000010000119 /* OperationsOverviewView.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
 		};
-		4A0000010000000010000304 /* WebGuardTests */ = {
+		4A0000030000000000000304 /* WebGuardWidget */ = {
 			isa = PBXGroup;
 			children = (
-				4A0000010000000010000117 /* ModelsTests.swift */,
+				4A0000010000000000000117 /* WebGuardWidget Info.plist */,
+				4A000001000000000000011A /* WebGuardWidget.entitlements */,
+				4A0000010000000000000116 /* WebGuardWidget.swift */,
+			);
+			path = WebGuardWidget;
+			sourceTree = "<group>";
+		};
+		4A0000020000000000000300 /* WebGuardTests */ = {
+			isa = PBXGroup;
+			children = (
+				4A0000020000000000000101 /* WebGuardTests.swift */,
+				4A0000020000000000000102 /* ModelsTests.swift */,
 			);
 			path = WebGuardTests;
 			sourceTree = "<group>";
@@ -147,33 +193,52 @@
 				4A0000010000000000000500 /* Sources */,
 				4A0000010000000000000200 /* Frameworks */,
 				4A0000010000000000000501 /* Resources */,
+				4A0000030000000000000504 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4A0000030000000000000802 /* PBXTargetDependency */,
 			);
 			name = WebGuard;
 			productName = WebGuard;
 			productReference = 4A0000010000000000000100 /* WebGuard.app */;
 			productType = "com.apple.product-type.application";
 		};
-		4A0000010000000010000402 /* WebGuardTests */ = {
+		4A0000020000000000000400 /* WebGuardTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4A0000010000000010000603 /* Build configuration list for PBXNativeTarget "WebGuardTests" */;
+			buildConfigurationList = 4A0000020000000000000600 /* Build configuration list for PBXNativeTarget "WebGuardTests" */;
 			buildPhases = (
-				4A0000010000000010000502 /* Sources */,
-				4A0000010000000010000201 /* Frameworks */,
-				4A0000010000000010000503 /* Resources */,
+				4A0000020000000000000500 /* Sources */,
+				4A0000020000000000000200 /* Frameworks */,
+				4A0000020000000000000501 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				4A0000010000000010000801 /* PBXTargetDependency */,
+				4A0000020000000000000801 /* PBXTargetDependency */,
 			);
 			name = WebGuardTests;
 			productName = WebGuardTests;
-			productReference = 4A0000010000000010000101 /* WebGuardTests.xctest */;
+			productReference = 4A0000020000000000000100 /* WebGuardTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		4A0000030000000000000402 /* WebGuardWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4A0000030000000000000602 /* Build configuration list for PBXNativeTarget "WebGuardWidget" */;
+			buildPhases = (
+				4A0000030000000000000502 /* Sources */,
+				4A0000030000000000000201 /* Frameworks */,
+				4A0000030000000000000503 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WebGuardWidget;
+			productName = WebGuardWidget;
+			productReference = 4A0000010000000000000115 /* WebGuardWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -188,9 +253,12 @@
 					4A0000010000000000000400 = {
 						CreatedOnToolsVersion = 26.6;
 					};
-					4A0000010000000010000402 = {
+					4A0000020000000000000400 = {
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 4A0000010000000000000400;
+					};
+					4A0000030000000000000402 = {
+						CreatedOnToolsVersion = 26.6;
 					};
 				};
 			};
@@ -209,28 +277,11 @@
 			projectRoot = "";
 			targets = (
 				4A0000010000000000000400 /* WebGuard */,
-				4A0000010000000010000402 /* WebGuardTests */,
+				4A0000020000000000000400 /* WebGuardTests */,
+				4A0000030000000000000402 /* WebGuardWidget */,
 			);
 		};
 /* End PBXProject section */
-
-/* Begin PBXTargetDependency section */
-		4A0000010000000010000801 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 4A0000010000000000000400 /* WebGuard */;
-			targetProxy = 4A0000010000000010000800 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
-/* Begin PBXContainerItemProxy section */
-		4A0000010000000010000800 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 4A0000010000000000000401 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 4A0000010000000000000400;
-			remoteInfo = WebGuard;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
 		4A0000010000000000000501 /* Resources */ = {
@@ -242,11 +293,29 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4A0000010000000010000503 /* Resources */ = {
+		4A0000020000000000000501 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A0000030000000000000503 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A0000030000000000000504 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4A0000010000000000000014 /* WebGuardWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
@@ -270,20 +339,43 @@
 				4A000001000000000000000C /* MonitoringListView.swift in Sources */,
 				4A000001000000000000000D /* NotificationsView.swift in Sources */,
 				4A000001000000000000000E /* SettingsView.swift in Sources */,
-				4A0000010000000010000011 /* OperationsOverviewView.swift in Sources */,
-				4A0000010000000010000012 /* MonitoringDetailView.swift in Sources */,
+				4A0000010000000000000011 /* WidgetSnapshot.swift in Sources */,
+				4A0000010000000010000015 /* OperationsOverviewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4A0000010000000010000502 /* Sources */ = {
+		4A0000020000000000000500 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4A0000010000000010000013 /* ModelsTests.swift in Sources */,
+				4A0000020000000000000001 /* WebGuardTests.swift in Sources */,
+				4A0000020000000000000002 /* ModelsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A0000030000000000000502 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A0000010000000000000012 /* WebGuardWidget.swift in Sources */,
+				4A0000010000000000000013 /* WidgetSnapshot.swift in Widget Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4A0000020000000000000801 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4A0000010000000000000400 /* WebGuard */;
+			targetProxy = 4A0000020000000000000800 /* PBXContainerItemProxy */;
+		};
+		4A0000030000000000000802 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4A0000030000000000000402 /* WebGuardWidget */;
+			targetProxy = 4A0000030000000000000800 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		4A0000010000000000000700 /* Debug */ = {
@@ -292,8 +384,7 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-			ENABLE_PREVIEWS = YES;
-			ENABLE_TESTABILITY = YES;
+				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WebGuard/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -325,7 +416,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = WebGuard/WebGuard.entitlements;
+				ENABLE_TESTABILITY = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
 		};
@@ -339,35 +432,67 @@
 			};
 			name = Release;
 		};
-		4A0000010000000010000704 /* Debug */ = {
+		4A0000020000000000000700 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4A0000010000000000000112 /* Debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WebGuard.app/WebGuard";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WebGuard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WebGuard";
 			};
 			name = Debug;
 		};
-		4A0000010000000010000705 /* Release */ = {
+		4A0000020000000000000701 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4A0000010000000000000113 /* Release.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WebGuard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WebGuard";
+			};
+			name = Release;
+		};
+		4A0000030000000000000704 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4A0000010000000000000112 /* Debug.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WebGuardWidget/WebGuardWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WebGuardWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WebGuard.app/WebGuard";
+			};
+			name = Debug;
+		};
+		4A0000030000000000000705 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4A0000010000000000000113 /* Release.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = WebGuardWidget/WebGuardWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WebGuardWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -392,11 +517,20 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4A0000010000000010000603 /* Build configuration list for PBXNativeTarget "WebGuardTests" */ = {
+		4A0000020000000000000600 /* Build configuration list for PBXNativeTarget "WebGuardTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				4A0000010000000010000704 /* Debug */,
-				4A0000010000000010000705 /* Release */,
+				4A0000020000000000000700 /* Debug */,
+				4A0000020000000000000701 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4A0000030000000000000602 /* Build configuration list for PBXNativeTarget "WebGuardWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A0000030000000000000704 /* Debug */,
+				4A0000030000000000000705 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
