@@ -35,22 +35,76 @@ struct RootView: View {
 }
 
 struct MainTabsView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var selectedDestination: MainDestination? = .overview
+
     var body: some View {
-        TabView {
-            MonitoringListView()
-                .tabItem {
-                    Label("Monitorings", systemImage: "checklist")
+        if horizontalSizeClass == .regular {
+            NavigationSplitView {
+                List(selection: $selectedDestination) {
+                    ForEach(MainDestination.allCases) { destination in
+                        Label(destination.title, systemImage: destination.systemImage)
+                            .tag(destination as MainDestination?)
+                    }
                 }
+                .navigationTitle("WebGuard")
+                .listStyle(.sidebar)
+            } detail: {
+                destinationView(selectedDestination ?? .overview)
+            }
+        } else {
+            TabView(selection: $selectedDestination) {
+                destinationView(.overview)
+                    .tabItem { Label(MainDestination.overview.title, systemImage: MainDestination.overview.systemImage) }
+                    .tag(MainDestination.overview)
+                destinationView(.monitorings)
+                    .tabItem { Label(MainDestination.monitorings.title, systemImage: MainDestination.monitorings.systemImage) }
+                    .tag(MainDestination.monitorings)
+                destinationView(.notifications)
+                    .tabItem { Label(MainDestination.notifications.title, systemImage: MainDestination.notifications.systemImage) }
+                    .tag(MainDestination.notifications)
+                destinationView(.settings)
+                    .tabItem { Label(MainDestination.settings.title, systemImage: MainDestination.settings.systemImage) }
+                    .tag(MainDestination.settings)
+            }
+            .tint(Brand.accent)
+        }
+    }
 
-            NotificationsView()
-                .tabItem {
-                    Label("Benachrichtigungen", systemImage: "bell")
-                }
+    @ViewBuilder
+    private func destinationView(_ destination: MainDestination) -> some View {
+        switch destination {
+        case .overview: OperationsOverviewView()
+        case .monitorings: MonitoringListView()
+        case .notifications: NotificationsView()
+        case .settings: SettingsView()
+        }
+    }
+}
 
-            SettingsView()
-                .tabItem {
-                    Label("Einstellungen", systemImage: "gearshape")
-                }
+private enum MainDestination: String, CaseIterable, Identifiable, Hashable {
+    case overview
+    case monitorings
+    case notifications
+    case settings
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .overview: return "Übersicht"
+        case .monitorings: return "Monitorings"
+        case .notifications: return "Benachrichtigungen"
+        case .settings: return "Einstellungen"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .overview: return "rectangle.3.group"
+        case .monitorings: return "checklist"
+        case .notifications: return "bell"
+        case .settings: return "gearshape"
         }
     }
 }

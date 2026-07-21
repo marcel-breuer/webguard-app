@@ -16,13 +16,19 @@ struct NotificationsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Benachrichtigungen")
-                        .font(.system(size: 34, weight: .black, design: .rounded))
-                        .foregroundStyle(Brand.text)
-                    Text("Letzte Push Events")
-                        .font(.system(size: 17, design: .rounded))
-                        .foregroundStyle(Brand.mutedText)
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("STATUS BOARD")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .tracking(1.3)
+                            .foregroundStyle(Brand.mutedText)
+                        Text("Benachrichtigungen")
+                            .font(.system(size: 31, weight: .black, design: .rounded))
+                            .foregroundStyle(Brand.text)
+                        Text("Letzte Push Events und Statusänderungen")
+                            .font(.system(size: 15, design: .rounded))
+                            .foregroundStyle(Brand.mutedText)
+                    }
 
                     Picker("Filter", selection: $filter) {
                         Text("Statusänderungen").tag(NotificationFilter.statusChanges)
@@ -32,18 +38,34 @@ struct NotificationsView: View {
 
                     VStack(spacing: 0) {
                         if visibleEvents.isEmpty {
-                            HStack(spacing: 10) {
-                                Image(systemName: "bell")
-                                Text("Noch keine Push Events empfangen.")
+                            VStack(alignment: .leading, spacing: 8) {
+                                Image(systemName: "bell.slash")
+                                    .font(.title2)
+                                    .foregroundStyle(Brand.accent)
+                                Text("Noch keine Push Events")
+                                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Brand.text)
+                                Text("Statusänderungen erscheinen hier, sobald WebGuard dieses Gerät benachrichtigt.")
+                                    .font(.system(size: 14, design: .rounded))
+                                    .foregroundStyle(Brand.mutedText)
                             }
-                            .font(.system(size: 15, design: .rounded))
-                            .foregroundStyle(Brand.mutedText)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 8)
+                            .padding(.vertical, 12)
                         } else {
                             ForEach(visibleEvents) { event in
-                                NotificationRow(event: event)
-                                Divider().background(Brand.border)
+                                if let monitor = appState.monitors.first(where: { $0.id == event.monitoringID }) {
+                                    NavigationLink {
+                                        MonitoringDetailView(monitor: monitor)
+                                    } label: {
+                                        NotificationRow(event: event)
+                                    }
+                                    .buttonStyle(.plain)
+                                } else {
+                                    NotificationRow(event: event)
+                                }
+                                if event.id != visibleEvents.last?.id {
+                                    Divider().background(Brand.border)
+                                }
                             }
                         }
                     }
@@ -53,54 +75,60 @@ struct NotificationsView: View {
                 .webGuardContentWidth(900)
             }
             .background(Brand.background)
+            .navigationTitle("Benachrichtigungen")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
 
-private enum NotificationFilter {
+private enum NotificationFilter: Hashable {
     case statusChanges
     case all
 }
 
-struct NotificationRow: View {
-    var event: PushEvent
+private struct NotificationRow: View {
+    let event: PushEvent
+
+    private var tone: MonitorTone {
+        event.eventType == "recovery" ? .up : .down
+    }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .center, spacing: 12) {
             RoundedRectangle(cornerRadius: 4)
-                .fill(tone == .up ? Brand.success : Brand.danger)
+                .fill(tone.color)
                 .frame(width: 4)
 
-            VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: event.eventType == "recovery" ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                .foregroundStyle(tone.color)
+                .frame(width: 32, height: 32)
+                .background(tone.background)
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text(event.monitoringName)
-                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(Brand.text)
                     .lineLimit(2)
-
-                Text(event.eventType == "recovery" ? "Wiederhergestellt" : "Kritische Vorfälle")
-                    .font(.system(size: 15, design: .rounded))
+                Text(event.eventType == "recovery" ? "Wiederhergestellt" : "Kritischer Vorfall")
+                    .font(.system(size: 13, design: .rounded))
                     .foregroundStyle(Brand.mutedText)
-
                 Text(event.monitoringTarget)
-                    .font(.system(size: 15, design: .rounded))
+                    .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(Brand.mutedText)
                     .lineLimit(1)
             }
 
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 10) {
+            Spacer(minLength: 4)
+            VStack(alignment: .trailing, spacing: 7) {
                 Text(event.occurredAt.formatted(date: .numeric, time: .shortened))
-                    .font(.system(size: 13, design: .rounded))
+                    .font(.system(size: 11, design: .rounded))
                     .foregroundStyle(Brand.mutedText)
-                StatusPill(tone: tone, label: event.eventType == "recovery" ? "up" : "down")
+                WebGuardStatusBadge(tone: tone, label: nil)
             }
         }
-        .frame(minHeight: 92)
-        .padding(.vertical, 12)
-    }
-
-    private var tone: MonitorTone {
-        event.eventType == "recovery" ? .up : .down
+        .frame(minHeight: 82)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
     }
 }

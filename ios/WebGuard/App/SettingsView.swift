@@ -11,6 +11,10 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    Text("ACCOUNT CONSOLE")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .tracking(1.3)
+                        .foregroundStyle(Brand.mutedText)
                     Text("Einstellungen")
                         .font(.system(size: 34, weight: .black, design: .rounded))
                         .foregroundStyle(Brand.text)
@@ -94,6 +98,8 @@ struct SettingsView: View {
                 .webGuardContentWidth(860)
             }
             .background(Brand.background)
+            .navigationTitle("Einstellungen")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

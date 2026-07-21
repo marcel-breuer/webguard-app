@@ -5,6 +5,7 @@ import SwiftUI
 final class AppState: ObservableObject {
     @Published var session: StoredSession?
     @Published var monitors: [KnownMonitor] = []
+    @Published var overview = MobileOverviewPayload.fallback(monitors: [], events: [])
     @Published var events: [PushEvent] = []
     @Published var errorMessage: String?
     @Published var isBusy = false
@@ -25,6 +26,7 @@ final class AppState: ObservableObject {
         session = try? keychain.loadSession()
         monitors = cache.loadMonitors()
         events = cache.loadEvents()
+        overview = cache.loadOverview() ?? .fallback(monitors: monitors, events: events)
 
         NotificationCenter.default.addObserver(
             forName: .didReceivePushEvent,
@@ -79,6 +81,7 @@ final class AppState: ObservableObject {
             )
             let authenticatedClient = WebGuardAPIClient(serverURL: serverURL, token: loginData.token)
             let monitorings = try await authenticatedClient.listMonitorings()
+            let remoteOverview = try? await authenticatedClient.operationsOverview()
 
             let next = StoredSession(
                 serverURL: serverURL,
@@ -95,6 +98,10 @@ final class AppState: ObservableObject {
             session = next
             cache.saveMonitors(monitorings)
             monitors = monitorings
+            overview = remoteOverview ?? .fallback(monitors: monitorings, events: events)
+            if let remoteOverview {
+                cache.saveOverview(remoteOverview)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -172,11 +179,44 @@ final class AppState: ObservableObject {
             let monitorings = try await client.listMonitorings()
             cache.saveMonitors(monitorings)
             monitors = monitorings
+            overview = .fallback(monitors: monitorings, events: events)
             updateLastAPICallAt()
         } catch WebGuardAPIError.unauthorized {
             await signOut()
             errorMessage = WebGuardAPIError.unauthorized.localizedDescription
         } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func refreshOverview() async {
+        guard let client = apiClient else {
+            return
+        }
+
+        do {
+            let nextOverview = try await client.operationsOverview()
+            overview = nextOverview
+            cache.saveOverview(nextOverview)
+            let nextMonitors = nextOverview.services.map { service in
+                KnownMonitor(
+                    id: service.id,
+                    name: service.name,
+                    target: service.target,
+                    status: service.status,
+                    lastSeenAt: service.lastCheckedAt ?? Date()
+                )
+            }
+            if !nextMonitors.isEmpty {
+                cache.saveMonitors(nextMonitors)
+                monitors = nextMonitors
+            }
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+        } catch {
+            overview = .fallback(monitors: monitors, events: events)
             errorMessage = error.localizedDescription
         }
     }
@@ -195,12 +235,14 @@ final class AppState: ObservableObject {
         session = nil
         monitors = []
         events = []
+        overview = .fallback(monitors: [], events: [])
     }
 
     private func handlePushEvent(_ event: PushEvent) {
         cache.addEvent(event)
         events = cache.loadEvents()
         monitors = cache.loadMonitors()
+        overview = .fallback(monitors: monitors, events: events)
     }
 
     private func persist(_ next: StoredSession) {
