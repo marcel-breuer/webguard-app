@@ -60,8 +60,10 @@ struct NotificationsView: View {
                                         NotificationRow(event: event)
                                     }
                                     .buttonStyle(.plain)
+                                    .accessibilityIdentifier(WebGuardAccessibilityID.notificationRow(event.id))
                                 } else {
                                     NotificationRow(event: event)
+                                        .accessibilityIdentifier(WebGuardAccessibilityID.notificationRow(event.id))
                                 }
                                 if event.id != visibleEvents.last?.id {
                                     Divider().background(Brand.border)
@@ -74,6 +76,7 @@ struct NotificationsView: View {
                 .padding(20)
                 .webGuardContentWidth(900)
             }
+            .accessibilityIdentifier(WebGuardAccessibilityID.notifications)
             .background(Brand.background)
             .navigationTitle("Benachrichtigungen")
             .navigationBarTitleDisplayMode(.inline)

@@ -63,6 +63,7 @@ struct MonitoringListView: View {
                     }
 
                     FormTextField(title: "Suchen", text: $query)
+                        .accessibilityIdentifier(WebGuardAccessibilityID.monitoringSearch)
 
                     VStack(spacing: 0) {
                         if filteredMonitors.isEmpty {
@@ -79,6 +80,7 @@ struct MonitoringListView: View {
                                     MonitorRow(monitor: monitor)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityIdentifier(WebGuardAccessibilityID.monitoringRow(monitor.id))
                                 Divider().background(Brand.border)
                             }
                         }
@@ -88,6 +90,7 @@ struct MonitoringListView: View {
                 .padding(20)
                 .webGuardContentWidth(1040)
             }
+            .accessibilityIdentifier(WebGuardAccessibilityID.monitoringList)
             .refreshable {
                 await appState.refreshMonitorings()
             }
@@ -445,6 +448,7 @@ struct MonitoringDetailView: View {
         }
         .navigationTitle("Monitoring")
         .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier(WebGuardAccessibilityID.monitoringDetail(monitor.id))
         .background(Brand.background)
     }
 
@@ -630,6 +634,8 @@ struct StatusPill: View {
         .padding(.vertical, 8)
         .background(background)
         .clipShape(Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(displayLabel)
     }
 
     private var displayLabel: String {

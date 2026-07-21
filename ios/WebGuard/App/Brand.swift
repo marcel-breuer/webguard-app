@@ -17,6 +17,45 @@ enum Brand {
     static let warningMuted = Color(red: 1.0, green: 0.97, blue: 0.84)
 }
 
+enum WebGuardAccessibilityID {
+    static let mainNavigation = "webguard.navigation.main"
+    static let overview = "webguard.overview"
+    static let overviewHealthSummary = "webguard.overview.health-summary"
+    static let overviewAttention = "webguard.overview.attention"
+    static let overviewServiceLandscape = "webguard.overview.service-landscape"
+    static let overviewNextAction = "webguard.overview.next-action"
+    static let monitoringList = "webguard.monitorings"
+    static let monitoringSearch = "webguard.monitorings.search"
+    static let notifications = "webguard.notifications"
+    static let settings = "webguard.settings"
+    static let pushToggle = "webguard.settings.push-toggle"
+    static let signOut = "webguard.settings.sign-out"
+
+    static func attention(_ id: String) -> String {
+        "webguard.overview.attention.\(id)"
+    }
+
+    static func service(_ id: String) -> String {
+        "webguard.overview.service.\(id)"
+    }
+
+    static func monitoringRow(_ id: String) -> String {
+        "webguard.monitorings.row.\(id)"
+    }
+
+    static func monitoringDetail(_ id: String) -> String {
+        "webguard.monitorings.detail.\(id)"
+    }
+
+    static func notificationRow(_ id: String) -> String {
+        "webguard.notifications.row.\(id)"
+    }
+
+    static func notificationPreference(_ id: String) -> String {
+        "webguard.settings.notification-preference.\(id)"
+    }
+}
+
 struct CardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content

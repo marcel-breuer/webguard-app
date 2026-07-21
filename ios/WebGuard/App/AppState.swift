@@ -14,20 +14,30 @@ final class AppState: ObservableObject {
     @Published var errorMessage: String?
     @Published var isBusy = false
 
-    private let keychain: KeychainStore
-    private let cache: LocalCache
+    private let keychain: SessionStore
+    private let cache: CacheStore
     private let apnsService: APNsService
+    private let clientFactory: (StoredSession) -> WebGuardAPIClientProtocol
+    private var notificationObservers: [NSObjectProtocol] = []
     private static let defaultServerURL = URL(string: "https://app.webguard.marcel-breuer.dev")!
     private static let monitoringFreshnessWindow: TimeInterval = 5 * 60
 
     convenience init() {
-        self.init(keychain: .shared, cache: .shared, apnsService: .shared)
+        self.init(keychain: KeychainStore.shared, cache: LocalCache.shared, apnsService: .shared)
     }
 
-    init(keychain: KeychainStore, cache: LocalCache, apnsService: APNsService) {
+    init(
+        keychain: SessionStore,
+        cache: CacheStore,
+        apnsService: APNsService,
+        clientFactory: @escaping (StoredSession) -> WebGuardAPIClientProtocol = { session in
+            WebGuardAPIClient(serverURL: session.serverURL, token: session.accessToken)
+        }
+    ) {
         self.keychain = keychain
         self.cache = cache
         self.apnsService = apnsService
+        self.clientFactory = clientFactory
         session = try? keychain.loadSession()
         monitors = cache.loadMonitors()
         events = cache.loadEvents()
@@ -40,7 +50,7 @@ final class AppState: ObservableObject {
             saveWidgetSnapshot()
         }
 
-        NotificationCenter.default.addObserver(
+        let receiveObserver = NotificationCenter.default.addObserver(
             forName: .didReceivePushEvent,
             object: nil,
             queue: .main
@@ -54,7 +64,9 @@ final class AppState: ObservableObject {
             }
         }
 
-        NotificationCenter.default.addObserver(
+        notificationObservers.append(receiveObserver)
+
+        let openObserver = NotificationCenter.default.addObserver(
             forName: .didOpenPushEvent,
             object: nil,
             queue: .main
@@ -67,14 +79,16 @@ final class AppState: ObservableObject {
                 self?.pendingMonitoringID = event.monitoringID
             }
         }
+
+        notificationObservers.append(openObserver)
     }
 
-    var apiClient: WebGuardAPIClient? {
-        guard let session else {
-            return nil
-        }
+    deinit {
+        notificationObservers.forEach(NotificationCenter.default.removeObserver)
+    }
 
-        return WebGuardAPIClient(serverURL: session.serverURL, token: session.accessToken)
+    var apiClient: WebGuardAPIClientProtocol? {
+        session.map(clientFactory)
     }
 
     private var configuredServerURL: URL {
@@ -275,7 +289,7 @@ final class AppState: ObservableObject {
         }
 
         do {
-            let nextOverview = try await client.operationsOverview()
+            let nextOverview = try await client.operationsOverview(servicePage: 1)
             overview = nextOverview
             cache.saveOverview(nextOverview)
             let nextMonitors = nextOverview.services.map { service in
@@ -298,7 +312,9 @@ final class AppState: ObservableObject {
             errorMessage = WebGuardAPIError.unauthorized.localizedDescription
         } catch {
             isOffline = true
-            overview = .fallback(monitors: monitors, events: events)
+            if overview.services.isEmpty {
+                overview = .fallback(monitors: monitors, events: events)
+            }
             errorMessage = error.localizedDescription
         }
     }
