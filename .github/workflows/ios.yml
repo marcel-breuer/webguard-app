@@ -55,3 +55,51 @@ jobs:
             -derivedDataPath "$DERIVED_DATA_PATH" \
             CODE_SIGNING_ALLOWED=NO \
             test
+
+  release:
+    name: Create GitHub release
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        env:
+          VERSION_CONFIG: ios/WebGuard/Config/Release.xcconfig
+        run: |
+          set -euo pipefail
+          MARKETING_VERSION="$(awk -F ' = ' '/^MARKETING_VERSION = / { print $2; exit }' "$VERSION_CONFIG")"
+
+          if [ -z "$MARKETING_VERSION" ]; then
+            echo "MARKETING_VERSION is missing from $VERSION_CONFIG." >&2
+            exit 1
+          fi
+
+          echo "tag=v${MARKETING_VERSION}+${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "name=WebGuard iOS ${MARKETING_VERSION} (${GITHUB_RUN_NUMBER})" >> "$GITHUB_OUTPUT"
+
+      - name: Create published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_NAME: ${{ steps.version.outputs.name }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists."
+            exit 0
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$RELEASE_NAME" \
+            --generate-notes \
+            --latest
