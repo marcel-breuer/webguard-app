@@ -11,22 +11,64 @@ final class AppState: ObservableObject {
     @Published var pendingMonitoringID: String?
     @Published var isOffline = false
     @Published var lastMonitoringRefreshAt: Date?
-    @Published var errorMessage: String?
-    @Published var isBusy = false
+    @Published private(set) var authenticationState: AuthenticationState = .signedOut
+    @Published private(set) var monitoringLoadState: MonitoringLoadState = .idle
+    @Published private(set) var operationState: AppOperationState = .idle
+    @Published private(set) var alert: AppAlert?
 
     private let keychain: SessionStore
     private let cache: CacheStore
-    private let apnsService: APNsService
-    private let clientFactory: (StoredSession) -> WebGuardAPIClientProtocol
+    private let apnsService: any PushAuthorizing
+    private let deviceContextProvider: any DeviceContextProviding
+    private let apiClientFactory: WebGuardAPIClientFactory
+    private let serverURLProvider: () -> URL
     private var notificationObservers: [NSObjectProtocol] = []
     private static let defaultServerURL = URL(string: "https://app.webguard.marcel-breuer.dev")!
     private static let monitoringFreshnessWindow: TimeInterval = 5 * 60
 
     convenience init() {
-        self.init(keychain: KeychainStore.shared, cache: LocalCache.shared, apnsService: .shared)
+        self.init(
+            keychain: KeychainStore.shared,
+            cache: LocalCache.shared,
+            apnsService: APNsService.shared,
+            deviceContextProvider: SystemDeviceContextProvider(),
+            apiClientFactory: .live,
+            serverURLProvider: Self.configuredServerURL
+        )
     }
 
     init(
+        keychain: SessionStore,
+        cache: CacheStore,
+        apnsService: any PushAuthorizing,
+        deviceContextProvider: any DeviceContextProviding,
+        apiClientFactory: WebGuardAPIClientFactory,
+        serverURLProvider: @escaping () -> URL
+    ) {
+        self.keychain = keychain
+        self.cache = cache
+        self.apnsService = apnsService
+        self.deviceContextProvider = deviceContextProvider
+        self.apiClientFactory = apiClientFactory
+        self.serverURLProvider = serverURLProvider
+        session = try? keychain.loadSession()
+        monitors = cache.loadMonitors()
+        events = cache.loadEvents()
+        overview = cache.loadOverview() ?? .fallback(monitors: monitors, events: events)
+        notificationPreferences = cache.loadNotificationPreferences()
+        lastMonitoringRefreshAt = cache.loadLastMonitoringRefreshAt()
+        authenticationState = session == nil ? .signedOut : .authenticated
+        monitoringLoadState = monitors.isEmpty ? .empty : (isMonitoringDataStale ? .stale : .loaded)
+        if session == nil {
+            WidgetSnapshotStore.clear()
+        } else {
+            saveWidgetSnapshot()
+        }
+
+        registerNotificationObservers()
+    }
+
+    convenience init(
         keychain: SessionStore,
         cache: CacheStore,
         apnsService: APNsService,
@@ -34,22 +76,20 @@ final class AppState: ObservableObject {
             WebGuardAPIClient(serverURL: session.serverURL, token: session.accessToken)
         }
     ) {
-        self.keychain = keychain
-        self.cache = cache
-        self.apnsService = apnsService
-        self.clientFactory = clientFactory
-        session = try? keychain.loadSession()
-        monitors = cache.loadMonitors()
-        events = cache.loadEvents()
-        overview = cache.loadOverview() ?? .fallback(monitors: monitors, events: events)
-        notificationPreferences = cache.loadNotificationPreferences()
-        lastMonitoringRefreshAt = cache.loadLastMonitoringRefreshAt()
-        if session == nil {
-            WidgetSnapshotStore.clear()
-        } else {
-            saveWidgetSnapshot()
-        }
+        self.init(
+            keychain: keychain,
+            cache: cache,
+            apnsService: apnsService,
+            deviceContextProvider: SystemDeviceContextProvider(),
+            apiClientFactory: WebGuardAPIClientFactory(
+                unauthenticatedClient: { WebGuardAPIClient(serverURL: $0) },
+                authenticatedClient: clientFactory
+            ),
+            serverURLProvider: Self.configuredServerURL
+        )
+    }
 
+    private func registerNotificationObservers() {
         let receiveObserver = NotificationCenter.default.addObserver(
             forName: .didReceivePushEvent,
             object: nil,
@@ -87,11 +127,19 @@ final class AppState: ObservableObject {
         notificationObservers.forEach(NotificationCenter.default.removeObserver)
     }
 
-    var apiClient: WebGuardAPIClientProtocol? {
-        session.map(clientFactory)
+    var isBusy: Bool {
+        operationState != .idle
     }
 
-    private var configuredServerURL: URL {
+    var errorMessage: String? {
+        alert?.message
+    }
+
+    var apiClient: (any WebGuardAPIClientProtocol)? {
+        session.map(apiClientFactory.authenticatedClient)
+    }
+
+    private static func configuredServerURL() -> URL {
         guard let configuredValue = Bundle.main.object(forInfoDictionaryKey: "WEBGUARD_BASE_URL") as? String,
               let configuredURL = URL(string: configuredValue.trimmingCharacters(in: .whitespacesAndNewlines)),
               configuredURL.scheme != nil,
@@ -105,23 +153,37 @@ final class AppState: ObservableObject {
     func signIn(email: String, password: String) async {
         guard !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !password.isEmpty else {
-            errorMessage = "E-Mail und Passwort sind erforderlich."
+            alert = AppAlert(message: "E-Mail und Passwort sind erforderlich.")
             return
         }
 
-        let serverURL = configuredServerURL
-        isBusy = true
-        defer { isBusy = false }
+        let serverURL = serverURLProvider()
+        authenticationState = .signingIn
+        monitoringLoadState = .loading
+        operationState = .signingIn
+        defer { operationState = .idle }
 
         do {
-            let loginClient = WebGuardAPIClient(serverURL: serverURL)
+            let loginClient = apiClientFactory.unauthenticatedClient(serverURL)
             let loginData = try await loginClient.login(
                 email: email.trimmingCharacters(in: .whitespacesAndNewlines),
-                password: password
+                password: password,
+                deviceContext: deviceContextProvider.currentDeviceContext()
             )
-            let authenticatedClient = WebGuardAPIClient(serverURL: serverURL, token: loginData.token)
+            let authenticatedClient = apiClientFactory.authenticatedClient(
+                StoredSession(
+                    serverURL: serverURL,
+                    accessToken: loginData.token,
+                    user: loginData.user,
+                    deviceID: nil,
+                    pushSetupCompleted: false,
+                    pushNotificationsEnabled: false,
+                    lastAPICallAt: nil,
+                    lastTokenRefreshAt: nil
+                )
+            )
             let monitorings = try await authenticatedClient.listMonitorings()
-            let remoteOverview = try? await authenticatedClient.operationsOverview()
+            let remoteOverview = try? await authenticatedClient.operationsOverview(servicePage: 1)
 
             let next = StoredSession(
                 serverURL: serverURL,
@@ -147,8 +209,12 @@ final class AppState: ObservableObject {
                 cache.saveOverview(remoteOverview)
             }
             saveWidgetSnapshot()
+            authenticationState = .authenticated
+            monitoringLoadState = monitorings.isEmpty ? .empty : .loaded
         } catch {
-            errorMessage = error.localizedDescription
+            authenticationState = .signedOut
+            monitoringLoadState = .failed
+            show(error)
         }
     }
 
@@ -167,12 +233,16 @@ final class AppState: ObservableObject {
             return
         }
 
-        isBusy = true
-        defer { isBusy = false }
+        operationState = .registeringPush
+        defer { operationState = .idle }
 
         do {
             let token = try await apnsService.requestAuthorizationAndRegister()
-            let device = try await client.registerAPNsDevice(token: token, existingDeviceID: next.deviceID)
+            let device = try await client.registerAPNsDevice(
+                token: token,
+                existingDeviceID: next.deviceID,
+                deviceContext: deviceContextProvider.currentDeviceContext()
+            )
 
             next.deviceID = device.id
             next.pushSetupCompleted = true
@@ -181,7 +251,7 @@ final class AppState: ObservableObject {
             next.lastTokenRefreshAt = Date()
             persist(next)
         } catch {
-            errorMessage = error.localizedDescription
+            show(error)
         }
     }
 
@@ -202,8 +272,8 @@ final class AppState: ObservableObject {
             return
         }
 
-        isBusy = true
-        defer { isBusy = false }
+        operationState = .updatingPushPreference
+        defer { operationState = .idle }
 
         do {
             let device = try await client.updateMobilePushDevice(deviceID: deviceID, enabled: enabled)
@@ -211,7 +281,7 @@ final class AppState: ObservableObject {
             next.lastAPICallAt = Date()
             persist(next)
         } catch {
-            errorMessage = error.localizedDescription
+            show(error)
         }
     }
 
@@ -220,6 +290,7 @@ final class AppState: ObservableObject {
             return
         }
 
+        monitoringLoadState = monitors.isEmpty ? .loading : .refreshing
         do {
             let monitorings = try await client.listMonitorings()
             cache.saveMonitors(monitorings)
@@ -231,12 +302,14 @@ final class AppState: ObservableObject {
             overview = .fallback(monitors: monitorings, events: events)
             saveWidgetSnapshot()
             updateLastAPICallAt()
+            monitoringLoadState = monitorings.isEmpty ? .empty : .loaded
         } catch WebGuardAPIError.unauthorized {
             await signOut()
-            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+            show(WebGuardAPIError.unauthorized)
         } catch {
             isOffline = true
-            errorMessage = error.localizedDescription
+            monitoringLoadState = monitors.isEmpty ? .failed : .stale
+            show(error)
         }
     }
 
@@ -275,9 +348,9 @@ final class AppState: ObservableObject {
             return monitor
         } catch WebGuardAPIError.unauthorized {
             await signOut()
-            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+            show(WebGuardAPIError.unauthorized)
         } catch {
-            errorMessage = error.localizedDescription
+            show(error)
         }
 
         return nil
@@ -288,6 +361,7 @@ final class AppState: ObservableObject {
             return
         }
 
+        monitoringLoadState = monitors.isEmpty ? .loading : .refreshing
         do {
             let nextOverview = try await client.operationsOverview(servicePage: 1)
             overview = nextOverview
@@ -307,15 +381,17 @@ final class AppState: ObservableObject {
             }
             isOffline = false
             updateLastAPICallAt()
+            monitoringLoadState = monitors.isEmpty ? .empty : .loaded
         } catch WebGuardAPIError.unauthorized {
             await signOut()
-            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+            show(WebGuardAPIError.unauthorized)
         } catch {
             isOffline = true
             if overview.services.isEmpty {
                 overview = .fallback(monitors: monitors, events: events)
             }
-            errorMessage = error.localizedDescription
+            monitoringLoadState = monitors.isEmpty ? .failed : .stale
+            show(error)
         }
     }
 
@@ -331,10 +407,10 @@ final class AppState: ObservableObject {
                 cache.saveNotificationPreferences(notificationPreferences)
             } catch WebGuardAPIError.unauthorized {
                 await signOut()
-                errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+                show(WebGuardAPIError.unauthorized)
                 return
             } catch {
-                errorMessage = error.localizedDescription
+                show(error)
                 return
             }
         }
@@ -351,8 +427,8 @@ final class AppState: ObservableObject {
         notificationPreferences[monitoringID] = optimistic
         cache.saveNotificationPreferences(notificationPreferences)
 
-        isBusy = true
-        defer { isBusy = false }
+        operationState = .updatingMonitoringPreference
+        defer { operationState = .idle }
 
         do {
             let updated = try await client.updateMonitoringNotificationPreference(
@@ -368,15 +444,16 @@ final class AppState: ObservableObject {
             notificationPreferences[monitoringID] = previous
             cache.saveNotificationPreferences(notificationPreferences)
             await signOut()
-            errorMessage = WebGuardAPIError.unauthorized.localizedDescription
+            show(WebGuardAPIError.unauthorized)
         } catch {
             notificationPreferences[monitoringID] = previous
             cache.saveNotificationPreferences(notificationPreferences)
-            errorMessage = error.localizedDescription
+            show(error)
         }
     }
 
     func signOut() async {
+        authenticationState = .signingOut
         if let client = apiClient {
             if let deviceID = session?.deviceID {
                 try? await client.revokeMobilePushDevice(deviceID: deviceID)
@@ -395,7 +472,18 @@ final class AppState: ObservableObject {
         pendingMonitoringID = nil
         isOffline = false
         lastMonitoringRefreshAt = nil
+        monitoringLoadState = .empty
+        authenticationState = .signedOut
+        operationState = .idle
         WidgetSnapshotStore.clear()
+    }
+
+    func dismissAlert() {
+        alert = nil
+    }
+
+    func present(message: String) {
+        alert = AppAlert(message: message)
     }
 
     func handleDeepLink(_ url: URL) {
@@ -409,6 +497,7 @@ final class AppState: ObservableObject {
         events = cache.loadEvents()
         monitors = cache.loadMonitors()
         overview = .fallback(monitors: monitors, events: events)
+        monitoringLoadState = monitors.isEmpty ? .empty : .loaded
         saveWidgetSnapshot()
     }
 
@@ -417,7 +506,7 @@ final class AppState: ObservableObject {
             try keychain.saveSession(next)
             session = next
         } catch {
-            errorMessage = error.localizedDescription
+            show(error)
         }
     }
 
@@ -443,5 +532,9 @@ final class AppState: ObservableObject {
                 )
             }
         )
+    }
+
+    private func show(_ error: Error) {
+        alert = AppAlert(message: error.localizedDescription)
     }
 }

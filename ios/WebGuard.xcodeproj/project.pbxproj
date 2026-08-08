@@ -30,6 +30,7 @@
 		4A0000020000000000000001 /* WebGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000020000000000000101 /* WebGuardTests.swift */; };
 		4A0000020000000000000002 /* ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000020000000000000102 /* ModelsTests.swift */; };
 		4A0000010000000010000015 /* OperationsOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000010000119 /* OperationsOverviewView.swift */; };
+		4A0000010000000020000001 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0000010000000020000101 /* AppDependencies.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +81,7 @@
 		4A0000020000000000000101 /* WebGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebGuardTests.swift; sourceTree = "<group>"; };
 		4A0000020000000000000102 /* ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsTests.swift; sourceTree = "<group>"; };
 		4A0000010000000010000119 /* OperationsOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperationsOverviewView.swift; sourceTree = "<group>"; };
+		4A0000010000000020000101 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -146,6 +148,7 @@
 			children = (
 				4A0000010000000000000101 /* WebGuardApp.swift */,
 				4A0000010000000000000102 /* AppState.swift */,
+				4A0000010000000020000101 /* AppDependencies.swift */,
 				4A0000010000000000000103 /* APNsService.swift */,
 				4A0000010000000000000104 /* WebGuardAPIClient.swift */,
 				4A0000010000000000000105 /* KeychainStore.swift */,
@@ -327,6 +330,7 @@
 			files = (
 				4A0000010000000000000001 /* WebGuardApp.swift in Sources */,
 				4A0000010000000000000002 /* AppState.swift in Sources */,
+				4A0000010000000020000001 /* AppDependencies.swift in Sources */,
 				4A0000010000000000000003 /* APNsService.swift in Sources */,
 				4A0000010000000000000004 /* WebGuardAPIClient.swift in Sources */,
 				4A0000010000000000000005 /* KeychainStore.swift in Sources */,

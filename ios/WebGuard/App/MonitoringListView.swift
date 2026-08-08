@@ -121,7 +121,7 @@ struct MonitoringListView: View {
             appState.pendingMonitoringID = nil
         } else {
             appState.pendingMonitoringID = nil
-            appState.errorMessage = "Das Monitoring aus der Benachrichtigung ist nicht mehr verfügbar."
+            appState.present(message: "Das Monitoring aus der Benachrichtigung ist nicht mehr verfügbar.")
         }
     }
 

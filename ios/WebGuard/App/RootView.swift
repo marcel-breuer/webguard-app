@@ -13,24 +13,24 @@ struct RootView: View {
                 MainTabsView()
             }
         }
-        .alert("WebGuard", isPresented: errorBinding) {
+        .alert("WebGuard", isPresented: alertBinding) {
             Button("OK", role: .cancel) {
-                appState.errorMessage = nil
+                appState.dismissAlert()
             }
         } message: {
-            Text(appState.errorMessage ?? "")
+            Text(appState.alert?.message ?? "")
         }
         .onOpenURL { url in
             appState.handleDeepLink(url)
         }
     }
 
-    private var errorBinding: Binding<Bool> {
+    private var alertBinding: Binding<Bool> {
         Binding(
-            get: { appState.errorMessage != nil },
+            get: { appState.alert != nil },
             set: { value in
                 if !value {
-                    appState.errorMessage = nil
+                    appState.dismissAlert()
                 }
             }
         )
