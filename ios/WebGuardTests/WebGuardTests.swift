@@ -184,6 +184,40 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(api.logoutCount, 1)
         XCTAssertEqual(state.errorMessage, WebGuardAPIError.unauthorized.localizedDescription)
     }
+
+    func testSignInUsesInjectedClientsAndPublishesExplicitStates() async {
+        let monitor = Fixtures.monitor(status: "up")
+        let sessionStore = InMemorySessionStore()
+        let cache = InMemoryCacheStore()
+        let api = MockAPIClient()
+        api.loginResult = .success(MobileLoginData(
+            token: "mobile-token",
+            tokenType: "Bearer",
+            user: AuthenticatedUser(id: "user-1", name: "Test User", email: "test@example.test")
+        ))
+        api.monitoringsResult = .success([monitor])
+
+        let state = AppState(
+            keychain: sessionStore,
+            cache: cache,
+            apnsService: FakePushService(),
+            deviceContextProvider: FakeDeviceContextProvider(),
+            apiClientFactory: WebGuardAPIClientFactory(
+                unauthenticatedClient: { _ in api },
+                authenticatedClient: { _ in api }
+            ),
+            serverURLProvider: { URL(string: "https://example.test")! }
+        )
+
+        await state.signIn(email: "test@example.test", password: "secret")
+
+        XCTAssertEqual(state.authenticationState, .authenticated)
+        XCTAssertEqual(state.monitoringLoadState, .loaded)
+        XCTAssertEqual(state.operationState, .idle)
+        XCTAssertEqual(state.session?.accessToken, "mobile-token")
+        XCTAssertEqual(cache.loadMonitors(), [monitor])
+        XCTAssertNil(state.alert)
+    }
 }
 
 private enum TestError: Error {
@@ -297,22 +331,32 @@ private final class InMemoryCacheStore: CacheStore {
 }
 
 private final class MockAPIClient: WebGuardAPIClientProtocol {
+    var loginResult: Result<MobileLoginData, Error> = .failure(TestError.unexpectedCall)
+    var monitoringsResult: Result<[KnownMonitor], Error> = .failure(TestError.unexpectedCall)
     var overviewResult: Result<MobileOverviewPayload, Error> = .success(.fallback(monitors: [], events: []))
     var logoutCount = 0
+
+    func login(email: String, password: String, deviceContext: DeviceContext) async throws -> MobileLoginData {
+        try loginResult.get()
+    }
 
     func logout() async throws {
         logoutCount += 1
     }
 
     func listMonitorings() async throws -> [KnownMonitor] {
-        throw TestError.unexpectedCall
+        try monitoringsResult.get()
     }
 
     func operationsOverview(servicePage: Int) async throws -> MobileOverviewPayload {
         try overviewResult.get()
     }
 
-    func registerAPNsDevice(token apnsToken: String, existingDeviceID: String?) async throws -> MobilePushDevice {
+    func registerAPNsDevice(
+        token apnsToken: String,
+        existingDeviceID: String?,
+        deviceContext: DeviceContext
+    ) async throws -> MobilePushDevice {
         throw TestError.unexpectedCall
     }
 
@@ -338,5 +382,19 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
         sslExpiryWarningDays: Int
     ) async throws -> MonitoringNotificationPreference {
         throw TestError.unexpectedCall
+    }
+}
+
+@MainActor
+private final class FakePushService: PushAuthorizing {
+    func requestAuthorizationAndRegister() async throws -> String {
+        "apns-token"
+    }
+}
+
+@MainActor
+private final class FakeDeviceContextProvider: DeviceContextProviding {
+    func currentDeviceContext() -> DeviceContext {
+        DeviceContext(name: "Test iPhone", appVersion: "1.0", locale: "en_US", timezone: "UTC")
     }
 }

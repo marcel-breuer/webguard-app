@@ -74,6 +74,20 @@ final class APNsService: ObservableObject {
     }
 }
 
+@MainActor
+struct SystemDeviceContextProvider: DeviceContextProviding {
+    func currentDeviceContext() -> DeviceContext {
+        DeviceContext(
+            name: UIDevice.current.name,
+            appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            locale: Locale.current.identifier,
+            timezone: TimeZone.current.identifier
+        )
+    }
+}
+
+extension APNsService: PushAuthorizing {}
+
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,

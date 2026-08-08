@@ -1,5 +1,4 @@
 import Foundation
-import UIKit
 
 enum WebGuardAPIError: LocalizedError {
     case invalidResponse
@@ -19,10 +18,15 @@ enum WebGuardAPIError: LocalizedError {
 }
 
 protocol WebGuardAPIClientProtocol {
+    func login(email: String, password: String, deviceContext: DeviceContext) async throws -> MobileLoginData
     func logout() async throws
     func listMonitorings() async throws -> [KnownMonitor]
     func operationsOverview(servicePage: Int) async throws -> MobileOverviewPayload
-    func registerAPNsDevice(token apnsToken: String, existingDeviceID: String?) async throws -> MobilePushDevice
+    func registerAPNsDevice(
+        token apnsToken: String,
+        existingDeviceID: String?,
+        deviceContext: DeviceContext
+    ) async throws -> MobilePushDevice
     func updateMobilePushDevice(deviceID: String, enabled: Bool) async throws -> MobilePushDevice
     func revokeMobilePushDevice(deviceID: String) async throws
     func monitoringStatus(monitorID: String) async throws -> MonitoringStatusPayload
@@ -52,9 +56,8 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         encoder.dateEncodingStrategy = .iso8601
     }
 
-    func login(email: String, password: String) async throws -> MobileLoginData {
-        let deviceContext = await Self.currentDeviceContext()
-        let payload = MobileLoginPayload(email: email, password: password, deviceName: deviceContext.deviceName)
+    func login(email: String, password: String, deviceContext: DeviceContext) async throws -> MobileLoginData {
+        let payload = MobileLoginPayload(email: email, password: password, deviceName: deviceContext.name)
         let response: MobileLoginResponse = try await request("/login", apiPrefix: "/api/mobile", method: "POST", body: payload)
 
         return response.data
@@ -101,11 +104,14 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         return response.data
     }
 
-    func registerAPNsDevice(token apnsToken: String, existingDeviceID: String?) async throws -> MobilePushDevice {
-        let deviceContext = await Self.currentDeviceContext()
+    func registerAPNsDevice(
+        token apnsToken: String,
+        existingDeviceID: String?,
+        deviceContext: DeviceContext
+    ) async throws -> MobilePushDevice {
         let payload = APNsRegistrationPayload(
             pushToken: apnsToken,
-            deviceName: deviceContext.deviceName,
+            deviceName: deviceContext.name,
             appVersion: deviceContext.appVersion,
             locale: deviceContext.locale,
             timezone: deviceContext.timezone,
@@ -259,15 +265,6 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         return try decoder.decode(Response.self, from: data)
     }
 
-    @MainActor
-    private static func currentDeviceContext() -> (deviceName: String, appVersion: String?, locale: String, timezone: String) {
-        (
-            deviceName: UIDevice.current.name,
-            appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
-            locale: Locale.current.identifier,
-            timezone: TimeZone.current.identifier
-        )
-    }
 }
 
 private struct EmptyResponse: Decodable {}
