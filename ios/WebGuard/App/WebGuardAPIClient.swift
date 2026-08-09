@@ -2,15 +2,17 @@ import Foundation
 
 enum WebGuardAPIError: LocalizedError {
     case invalidResponse
-    case requestFailed(Int, String)
+    case requestFailed(Int)
     case unauthorized
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
             return "Die WebGuard API hat keine gueltige Antwort geliefert."
-        case let .requestFailed(status, message):
-            return "WebGuard API Fehler \(status): \(message)"
+        case let .requestFailed(status) where (400..<500).contains(status):
+            return "Die Anfrage konnte nicht verarbeitet werden. Bitte pruefe deine Eingaben und versuche es erneut."
+        case .requestFailed:
+            return "Der WebGuard-Dienst ist derzeit nicht erreichbar. Bitte versuche es spaeter erneut."
         case .unauthorized:
             return "Die Anmeldung ist abgelaufen. Bitte melde dich erneut an."
         }
@@ -50,10 +52,8 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         self.serverURL = serverURL.normalizedWebGuardBaseURL()
         self.token = token
         self.urlSession = urlSession
-        decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        decoder = WebGuardJSONCoding.makeDecoder()
+        encoder = WebGuardJSONCoding.makeEncoder()
     }
 
     func login(email: String, password: String, deviceContext: DeviceContext) async throws -> MobileLoginData {
@@ -115,7 +115,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
             appVersion: deviceContext.appVersion,
             locale: deviceContext.locale,
             timezone: deviceContext.timezone,
-            notificationsAuthorizedAt: ISO8601DateFormatter().string(from: Date())
+            notificationsAuthorizedAt: WebGuardJSONCoding.string(from: Date())
         )
 
         let response: MobilePushDeviceResponse = try await request("/mobile-push-devices", method: "POST", body: payload)
@@ -258,8 +258,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
                 throw WebGuardAPIError.unauthorized
             }
 
-            let message = String(data: data, encoding: .utf8) ?? "Request failed"
-            throw WebGuardAPIError.requestFailed(httpResponse.statusCode, message)
+            throw WebGuardAPIError.requestFailed(httpResponse.statusCode)
         }
 
         return try decoder.decode(Response.self, from: data)

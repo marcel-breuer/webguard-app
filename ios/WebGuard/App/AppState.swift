@@ -21,9 +21,8 @@ final class AppState: ObservableObject {
     private let apnsService: any PushAuthorizing
     private let deviceContextProvider: any DeviceContextProviding
     private let apiClientFactory: WebGuardAPIClientFactory
-    private let serverURLProvider: () -> URL
+    private let serverURLProvider: () throws -> URL
     private var notificationObservers: [NSObjectProtocol] = []
-    private static let defaultServerURL = URL(string: "https://app.webguard.marcel-breuer.dev")!
     private static let monitoringFreshnessWindow: TimeInterval = 5 * 60
 
     convenience init() {
@@ -33,7 +32,7 @@ final class AppState: ObservableObject {
             apnsService: APNsService.shared,
             deviceContextProvider: SystemDeviceContextProvider(),
             apiClientFactory: .live,
-            serverURLProvider: Self.configuredServerURL
+            serverURLProvider: { try WebGuardConfiguration.serverURL() }
         )
     }
 
@@ -43,7 +42,7 @@ final class AppState: ObservableObject {
         apnsService: any PushAuthorizing,
         deviceContextProvider: any DeviceContextProviding,
         apiClientFactory: WebGuardAPIClientFactory,
-        serverURLProvider: @escaping () -> URL
+        serverURLProvider: @escaping () throws -> URL
     ) {
         self.keychain = keychain
         self.cache = cache
@@ -52,6 +51,7 @@ final class AppState: ObservableObject {
         self.apiClientFactory = apiClientFactory
         self.serverURLProvider = serverURLProvider
         session = try? keychain.loadSession()
+        cache.activate(for: session?.user.id)
         monitors = cache.loadMonitors()
         events = cache.loadEvents()
         overview = cache.loadOverview() ?? .fallback(monitors: monitors, events: events)
@@ -85,7 +85,7 @@ final class AppState: ObservableObject {
                 unauthenticatedClient: { WebGuardAPIClient(serverURL: $0) },
                 authenticatedClient: clientFactory
             ),
-            serverURLProvider: Self.configuredServerURL
+            serverURLProvider: { try WebGuardConfiguration.serverURL() }
         )
     }
 
@@ -139,17 +139,6 @@ final class AppState: ObservableObject {
         session.map(apiClientFactory.authenticatedClient)
     }
 
-    private static func configuredServerURL() -> URL {
-        guard let configuredValue = Bundle.main.object(forInfoDictionaryKey: "WEBGUARD_BASE_URL") as? String,
-              let configuredURL = URL(string: configuredValue.trimmingCharacters(in: .whitespacesAndNewlines)),
-              configuredURL.scheme != nil,
-              configuredURL.host != nil else {
-            return Self.defaultServerURL
-        }
-
-        return configuredURL
-    }
-
     func signIn(email: String, password: String) async {
         guard !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !password.isEmpty else {
@@ -157,7 +146,14 @@ final class AppState: ObservableObject {
             return
         }
 
-        let serverURL = serverURLProvider()
+        let serverURL: URL
+        do {
+            serverURL = try serverURLProvider()
+        } catch {
+            show(error)
+            return
+        }
+
         authenticationState = .signingIn
         monitoringLoadState = .loading
         operationState = .signingIn
@@ -197,7 +193,10 @@ final class AppState: ObservableObject {
             )
 
             try keychain.saveSession(next)
+            cache.activate(for: next.user.id)
             session = next
+            events = cache.loadEvents()
+            notificationPreferences = cache.loadNotificationPreferences()
             cache.saveMonitors(monitorings)
             let refreshedAt = Date()
             cache.saveLastMonitoringRefreshAt(refreshedAt)
@@ -335,7 +334,7 @@ final class AppState: ObservableObject {
             var monitor = monitors[index]
             monitor.status = payload.status ?? payload.statusLabel ?? monitor.status
             if let checkedAt = payload.checkedAt,
-               let date = ISO8601DateFormatter().date(from: checkedAt) {
+               let date = WebGuardJSONCoding.date(from: checkedAt) {
                 monitor.lastSeenAt = date
             } else {
                 monitor.lastSeenAt = Date()
@@ -464,6 +463,7 @@ final class AppState: ObservableObject {
 
         try? keychain.clearSession()
         cache.clear()
+        cache.activate(for: nil)
         session = nil
         monitors = []
         events = []

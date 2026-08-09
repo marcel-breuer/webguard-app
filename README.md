@@ -22,7 +22,7 @@ WebGuard brings your monitoring list and critical status changes directly to you
 - Apple Push Notification service
 - URLSession for the WebGuard API
 - iOS Keychain for the mobile session
-- UserDefaults for local monitoring and event caches
+- UserDefaults for schema-versioned, account-scoped local monitoring and event caches
 - Universal iOS target for iPhone and iPad
 
 ## Opening The Project
@@ -46,7 +46,9 @@ ios/WebGuard/Config/Release.xcconfig
 
 Credentials do not belong in the repository. Backend URLs, team IDs, and the APNs environment may be stored in xcconfig files; passwords, APNs private keys, and test accounts should stay in local `.env` files or in the deployment environment.
 
-The iOS app connects to `https://app.webguard.marcel-breuer.dev`. The domain is configured through `WEBGUARD_BASE_URL` in the build configuration and cannot be edited in the app UI. The login screen only asks for email and password. New accounts are created from the app through the WebGuard registration page.
+The iOS app reads its HTTPS server and registration URLs from `WEBGUARD_BASE_URL` and `WEBGUARD_REGISTRATION_URL` in the build configuration. Neither URL is editable in the app UI or hard-coded in a view. The login screen only asks for email and password.
+
+Cached monitoring, event, overview, and notification-preference data is stored in a schema-versioned namespace scoped to the signed-in user. A cache-schema upgrade removes the previous unscoped cache, and sign-out removes the active account cache.
 
 ## Backend Requirements
 
@@ -57,6 +59,10 @@ POST /api/mobile/login
 GET  /api/mobile/me
 POST /api/mobile/logout
 GET  /api/v1/monitorings
+GET  /api/v1/monitorings/{id}/status
+GET  /api/v1/mobile/overview?service_page={page}
+GET  /api/v1/monitorings/{id}/notification-preferences
+PATCH /api/v1/monitorings/{id}/notification-preferences
 POST /api/v1/mobile-push-devices
 PATCH /api/v1/mobile-push-devices/{id}
 DELETE /api/v1/mobile-push-devices/{id}
@@ -193,6 +199,7 @@ Live API smoke test:
 POST /api/mobile/login
 GET /api/mobile/me
 GET /api/v1/monitorings
+GET /api/v1/mobile/overview?service_page=1
 POST /api/mobile/logout
 ```
 

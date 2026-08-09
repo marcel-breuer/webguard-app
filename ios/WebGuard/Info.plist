@@ -44,6 +44,8 @@
 	</array>
 	<key>WEBGUARD_BASE_URL</key>
 	<string>$(WEBGUARD_BASE_URL)</string>
+	<key>WEBGUARD_REGISTRATION_URL</key>
+	<string>$(WEBGUARD_REGISTRATION_URL)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

@@ -48,6 +48,10 @@ POST /api/mobile/login
 GET  /api/mobile/me
 POST /api/mobile/logout
 GET  /api/v1/monitorings
+GET  /api/v1/monitorings/{id}/status
+GET  /api/v1/mobile/overview?service_page={page}
+GET  /api/v1/monitorings/{id}/notification-preferences
+PATCH /api/v1/monitorings/{id}/notification-preferences
 POST /api/v1/mobile-push-devices
 PATCH /api/v1/mobile-push-devices/{id}
 DELETE /api/v1/mobile-push-devices/{id}
@@ -91,9 +95,10 @@ Setze lokal:
 DEVELOPMENT_TEAM = <apple-team-id>
 PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard
 WEBGUARD_BASE_URL = https:/$()/app.webguard.marcel-breuer.dev
+WEBGUARD_REGISTRATION_URL = https:/$()/app.webguard.marcel-breuer.dev/register
 ```
 
-`WEBGUARD_BASE_URL` ist ein Build-Wert. Die App zeigt die Server-URL nicht im Login an und Benutzer melden sich nur mit E-Mail und Passwort an.
+`WEBGUARD_BASE_URL` und `WEBGUARD_REGISTRATION_URL` sind Build-Werte. Beide muessen gueltige HTTPS-URLs sein. Die App zeigt die Server-URL nicht im Login an und Benutzer melden sich nur mit E-Mail und Passwort an.
 
 Die App ist als Universal-App konfiguriert:
 

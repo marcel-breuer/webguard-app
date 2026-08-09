@@ -106,7 +106,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        print("APNs registration failed: \(error.localizedDescription)")
+        _ = error
     }
 
     func userNotificationCenter(
@@ -144,9 +144,8 @@ private extension PushEvent {
             return nil
         }
 
-        let formatter = ISO8601DateFormatter()
         let occurredAtString = userInfo["occurred_at"] as? String
-        let occurredAt = occurredAtString.flatMap { formatter.date(from: $0) } ?? Date()
+        let occurredAt = occurredAtString.flatMap(WebGuardJSONCoding.date(from:)) ?? Date()
         let notificationID = userInfo["notification_id"] as? String ?? UUID().uuidString
 
         self.init(

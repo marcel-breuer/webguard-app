@@ -1,6 +1,7 @@
 import Foundation
 
 protocol CacheStore {
+    func activate(for userID: String?)
     func loadMonitors() -> [KnownMonitor]
     func saveMonitors(_ monitors: [KnownMonitor])
     func upsertMonitor(_ monitor: KnownMonitor)
@@ -18,25 +19,47 @@ protocol CacheStore {
 final class LocalCache: CacheStore {
     static let shared = LocalCache()
 
-    private let monitorsKey = "webguard.known-monitors"
-    private let eventsKey = "webguard.notification-events"
-    private let overviewKey = "webguard.operations-overview"
-    private let notificationPreferencesKey = "webguard.notification-preferences"
-    private let lastMonitoringRefreshAtKey = "webguard.last-monitoring-refresh-at"
+    private enum Keys {
+        static let schemaVersion = "webguard.cache.schema-version"
+        static let schemaVersionValue = 2
+        static let namespace = "webguard.cache.v2"
+        static let monitors = "monitors"
+        static let events = "events"
+        static let overview = "overview"
+        static let notificationPreferences = "notification-preferences"
+        static let lastMonitoringRefreshAt = "last-monitoring-refresh-at"
+        static let legacy = [
+            "webguard.known-monitors",
+            "webguard.notification-events",
+            "webguard.operations-overview",
+            "webguard.notification-preferences",
+            "webguard.last-monitoring-refresh-at"
+        ]
+    }
+
+    private enum Limits {
+        static let monitors = 100
+        static let events = 50
+    }
+
     private let defaults: UserDefaults
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private var activeScope: String?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        encoder = WebGuardJSONCoding.makeEncoder()
+        decoder = WebGuardJSONCoding.makeDecoder()
+        migrateLegacyCacheIfNeeded()
+    }
+
+    func activate(for userID: String?) {
+        activeScope = userID.map { "\(Keys.namespace).\(scopedIdentifier(for: $0))" }
     }
 
     func loadMonitors() -> [KnownMonitor] {
-        guard let data = defaults.data(forKey: monitorsKey),
+        guard let data = data(for: Keys.monitors),
               let value = try? decoder.decode([KnownMonitor].self, from: data) else {
             return []
         }
@@ -45,7 +68,7 @@ final class LocalCache: CacheStore {
     }
 
     func saveMonitors(_ monitors: [KnownMonitor]) {
-        save(Array(monitors.prefix(100)), key: monitorsKey)
+        save(Array(monitors.prefix(Limits.monitors)), for: Keys.monitors)
     }
 
     func upsertMonitor(_ monitor: KnownMonitor) {
@@ -54,7 +77,7 @@ final class LocalCache: CacheStore {
     }
 
     func loadEvents() -> [PushEvent] {
-        guard let data = defaults.data(forKey: eventsKey),
+        guard let data = data(for: Keys.events),
               let value = try? decoder.decode([PushEvent].self, from: data) else {
             return []
         }
@@ -64,7 +87,7 @@ final class LocalCache: CacheStore {
 
     func addEvent(_ event: PushEvent) {
         let current = loadEvents()
-        save(Array(([event] + current.filter { $0.id != event.id }).prefix(50)), key: eventsKey)
+        save(Array(([event] + current.filter { $0.id != event.id }).prefix(Limits.events)), for: Keys.events)
 
         upsertMonitor(KnownMonitor(
             id: event.monitoringID,
@@ -79,7 +102,7 @@ final class LocalCache: CacheStore {
     }
 
     func loadNotificationPreferences() -> [String: MonitoringNotificationPreference] {
-        guard let data = defaults.data(forKey: notificationPreferencesKey),
+        guard let data = data(for: Keys.notificationPreferences),
               let value = try? decoder.decode([String: MonitoringNotificationPreference].self, from: data) else {
             return [:]
         }
@@ -88,19 +111,27 @@ final class LocalCache: CacheStore {
     }
 
     func saveNotificationPreferences(_ preferences: [String: MonitoringNotificationPreference]) {
-        save(preferences, key: notificationPreferencesKey)
+        save(preferences, for: Keys.notificationPreferences)
     }
 
     func loadLastMonitoringRefreshAt() -> Date? {
-        defaults.object(forKey: lastMonitoringRefreshAtKey) as? Date
+        guard let key = scopedKey(for: Keys.lastMonitoringRefreshAt) else {
+            return nil
+        }
+
+        return defaults.object(forKey: key) as? Date
     }
 
     func saveLastMonitoringRefreshAt(_ date: Date) {
-        defaults.set(date, forKey: lastMonitoringRefreshAtKey)
+        guard let key = scopedKey(for: Keys.lastMonitoringRefreshAt) else {
+            return
+        }
+
+        defaults.set(date, forKey: key)
     }
 
     func loadOverview() -> MobileOverviewPayload? {
-        guard let data = defaults.data(forKey: overviewKey) else {
+        guard let data = data(for: Keys.overview) else {
             return nil
         }
 
@@ -108,22 +139,54 @@ final class LocalCache: CacheStore {
     }
 
     func saveOverview(_ overview: MobileOverviewPayload) {
-        save(overview, key: overviewKey)
+        save(overview, for: Keys.overview)
     }
 
     func clear() {
-        defaults.removeObject(forKey: monitorsKey)
-        defaults.removeObject(forKey: eventsKey)
-        defaults.removeObject(forKey: overviewKey)
-        defaults.removeObject(forKey: notificationPreferencesKey)
-        defaults.removeObject(forKey: lastMonitoringRefreshAtKey)
+        [
+            Keys.monitors,
+            Keys.events,
+            Keys.overview,
+            Keys.notificationPreferences,
+            Keys.lastMonitoringRefreshAt
+        ].compactMap(scopedKey).forEach(defaults.removeObject(forKey:))
     }
 
-    private func save<T: Encodable>(_ value: T, key: String) {
-        guard let data = try? encoder.encode(value) else {
+    private func data(for name: String) -> Data? {
+        guard let key = scopedKey(for: name) else {
+            return nil
+        }
+
+        return defaults.data(forKey: key)
+    }
+
+    private func save<T: Encodable>(_ value: T, for name: String) {
+        guard let key = scopedKey(for: name),
+              let data = try? encoder.encode(value) else {
             return
         }
 
         defaults.set(data, forKey: key)
+    }
+
+    private func scopedKey(for name: String) -> String? {
+        activeScope.map { "\($0).\(name)" }
+    }
+
+    private func scopedIdentifier(for userID: String) -> String {
+        Data(userID.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    private func migrateLegacyCacheIfNeeded() {
+        guard defaults.integer(forKey: Keys.schemaVersion) < Keys.schemaVersionValue else {
+            return
+        }
+
+        Keys.legacy.forEach(defaults.removeObject(forKey:))
+        defaults.set(Keys.schemaVersionValue, forKey: Keys.schemaVersion)
     }
 }
