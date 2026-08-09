@@ -4,7 +4,6 @@ struct ConnectView: View {
     @EnvironmentObject private var appState: AppState
     @State private var email = ""
     @State private var password = ""
-    private let registrationURL = URL(string: "https://app.webguard.marcel-breuer.dev/register")!
 
     var body: some View {
         NavigationStack {
@@ -52,15 +51,17 @@ struct ConnectView: View {
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(email.isEmpty || password.isEmpty || appState.isBusy)
 
-                        HStack(spacing: 4) {
-                            Text("Noch keinen Account?")
-                                .foregroundStyle(Brand.mutedText)
-                            Link("Account erstellen", destination: registrationURL)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Brand.accent)
+                        if let registrationURL = try? WebGuardConfiguration.registrationURL() {
+                            HStack(spacing: 4) {
+                                Text("Noch keinen Account?")
+                                    .foregroundStyle(Brand.mutedText)
+                                Link("Account erstellen", destination: registrationURL)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Brand.accent)
+                            }
+                            .font(.system(size: 15, design: .rounded))
+                            .frame(maxWidth: .infinity)
                         }
-                        .font(.system(size: 15, design: .rounded))
-                        .frame(maxWidth: .infinity)
                     }
                     .webGuardCard()
 

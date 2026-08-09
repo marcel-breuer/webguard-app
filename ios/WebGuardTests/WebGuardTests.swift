@@ -8,6 +8,22 @@ final class WebGuardTests: XCTestCase {
         XCTAssertEqual(client.serverURL.absoluteString, "https://webguard.example.com/api")
     }
 
+    func testServerErrorDoesNotExposeResponseBody() {
+        let message = WebGuardAPIError.requestFailed(503).localizedDescription
+
+        XCTAssertEqual(message, "Der WebGuard-Dienst ist derzeit nicht erreichbar. Bitte versuche es spaeter erneut.")
+        XCTAssertFalse(message.contains("<"))
+    }
+
+    func testConfigurationRequiresValidHTTPSURLs() throws {
+        XCTAssertThrowsError(try WebGuardConfiguration.validatedHTTPSURL(nil))
+        XCTAssertThrowsError(try WebGuardConfiguration.validatedHTTPSURL("http://webguard.example.test"))
+
+        let url = try WebGuardConfiguration.validatedHTTPSURL("https://webguard.example.test/register")
+
+        XCTAssertEqual(url.host, "webguard.example.test")
+    }
+
     func testKnownMonitorToneClassifiesCommonStatuses() {
         XCTAssertEqual(monitor(status: "down").tone, .down)
         XCTAssertEqual(monitor(status: "failed").tone, .down)
@@ -304,6 +320,7 @@ private final class InMemoryCacheStore: CacheStore {
         self.lastRefreshAt = lastRefreshAt
     }
 
+    func activate(for userID: String?) {}
     func loadMonitors() -> [KnownMonitor] { monitors }
     func saveMonitors(_ monitors: [KnownMonitor]) { self.monitors = Array(monitors.prefix(100)) }
     func upsertMonitor(_ monitor: KnownMonitor) {

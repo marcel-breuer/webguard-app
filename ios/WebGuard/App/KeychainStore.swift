@@ -25,8 +25,7 @@ final class KeychainStore: SessionStore {
             return nil
         }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = WebGuardJSONCoding.makeDecoder()
 
         do {
             return try decoder.decode(StoredSession.self, from: data)
@@ -36,8 +35,7 @@ final class KeychainStore: SessionStore {
     }
 
     func saveSession(_ session: StoredSession) throws {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = WebGuardJSONCoding.makeEncoder()
 
         do {
             try save(encoder.encode(session), for: "session")

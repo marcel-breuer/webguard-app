@@ -153,6 +153,7 @@ final class ModelsTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let cache = LocalCache(defaults: defaults)
+        cache.activate(for: "user-1")
         let monitor = KnownMonitor(
             id: "monitor-1",
             name: "API",
@@ -188,5 +189,42 @@ final class ModelsTests: XCTestCase {
         XCTAssertTrue(cache.loadEvents().isEmpty)
         XCTAssertNil(cache.loadOverview())
         XCTAssertNil(cache.loadLastMonitoringRefreshAt())
+    }
+
+    func testLocalCacheMigratesLegacyDataAndIsolatesAccounts() {
+        let suiteName = "webguard.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(Data([0x01]), forKey: "webguard.known-monitors")
+
+        let cache = LocalCache(defaults: defaults)
+        let firstMonitor = KnownMonitor(
+            id: "monitor-a",
+            name: "First account",
+            target: "https://first.example.test",
+            status: "up",
+            lastSeenAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let secondMonitor = KnownMonitor(
+            id: "monitor-b",
+            name: "Second account",
+            target: "https://second.example.test",
+            status: "down",
+            lastSeenAt: Date(timeIntervalSince1970: 1_700_000_100)
+        )
+
+        cache.activate(for: "user-a")
+        cache.saveMonitors([firstMonitor])
+        cache.activate(for: "user-b")
+
+        XCTAssertNil(defaults.data(forKey: "webguard.known-monitors"))
+        XCTAssertTrue(cache.loadMonitors().isEmpty)
+
+        cache.saveMonitors([secondMonitor])
+        cache.activate(for: "user-a")
+        XCTAssertEqual(cache.loadMonitors(), [firstMonitor])
+
+        cache.activate(for: "user-b")
+        XCTAssertEqual(cache.loadMonitors(), [secondMonitor])
     }
 }

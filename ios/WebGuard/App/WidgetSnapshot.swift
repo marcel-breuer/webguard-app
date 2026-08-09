@@ -65,17 +65,8 @@ enum WidgetSnapshotStore {
     static let appGroup = "group.com.example.webguard"
     private static let snapshotKey = "webguard.widget.snapshot"
 
-    private static let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }()
-
-    private static let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }()
+    private static let encoder = WidgetSnapshotCoding.makeEncoder()
+    private static let decoder = WidgetSnapshotCoding.makeDecoder()
 
     static func save(monitors: [WidgetMonitorSnapshot]) {
         let snapshot = WidgetSnapshot(generatedAt: Date(), monitors: Array(monitors.prefix(100)))
@@ -101,6 +92,20 @@ enum WidgetSnapshotStore {
     static func clear() {
         UserDefaults(suiteName: appGroup)?.removeObject(forKey: snapshotKey)
         WidgetCenterBridge.reloadAllTimelines()
+    }
+}
+
+private enum WidgetSnapshotCoding {
+    static func makeEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+
+    static func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 }
 
