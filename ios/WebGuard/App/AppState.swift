@@ -378,6 +378,9 @@ final class AppState: ObservableObject {
                 cache.saveMonitors(nextMonitors)
                 monitors = nextMonitors
             }
+            let refreshedAt = Date()
+            cache.saveLastMonitoringRefreshAt(refreshedAt)
+            lastMonitoringRefreshAt = refreshedAt
             isOffline = false
             updateLastAPICallAt()
             monitoringLoadState = monitors.isEmpty ? .empty : .loaded

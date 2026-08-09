@@ -104,6 +104,7 @@ final class WebGuardTests: XCTestCase {
 
     func testAccessibilityIdentifiersExposeStableStateMatrixTargets() {
         XCTAssertEqual(WebGuardAccessibilityID.overview, "webguard.overview")
+        XCTAssertEqual(WebGuardAccessibilityID.overviewDataState, "webguard.overview.data-state")
         XCTAssertEqual(WebGuardAccessibilityID.overviewServiceLandscape, "webguard.overview.service-landscape")
         XCTAssertEqual(WebGuardAccessibilityID.service("monitor-1"), "webguard.overview.service.monitor-1")
         XCTAssertEqual(WebGuardAccessibilityID.attention("incident-1"), "webguard.overview.attention.incident-1")
@@ -170,6 +171,27 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.overview, overview)
         XCTAssertEqual(state.session, sessionStore.session)
         XCTAssertNotNil(state.errorMessage)
+    }
+
+    func testOverviewRefreshUpdatesFreshnessTimestamp() async {
+        let monitor = Fixtures.monitor(status: "up")
+        let staleRefresh = Date().addingTimeInterval(-600)
+        let cache = InMemoryCacheStore(monitors: [monitor], lastRefreshAt: staleRefresh)
+        let sessionStore = InMemorySessionStore(session: Fixtures.session())
+        let api = MockAPIClient()
+        api.overviewResult = .success(Fixtures.overview(for: monitor, recommendedAction: "notifications"))
+        let state = AppState(
+            keychain: sessionStore,
+            cache: cache,
+            apnsService: .shared,
+            clientFactory: { _ in api }
+        )
+
+        await state.refreshOverview()
+
+        XCTAssertFalse(state.isMonitoringDataStale)
+        XCTAssertNotNil(cache.loadLastMonitoringRefreshAt())
+        XCTAssertGreaterThan(state.lastMonitoringRefreshAt ?? .distantPast, staleRefresh)
     }
 
     func testUnauthorizedOverviewClearsSessionCachesAndWidgetData() async {
