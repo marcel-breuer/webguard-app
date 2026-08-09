@@ -8,8 +8,12 @@ struct OperationsOverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     OverviewIntro(overview: appState.overview)
+                    OverviewDataStateCard()
 
-                    if appState.overview.summary.total == 0 {
+                    if appState.monitoringLoadState == .loading,
+                       appState.overview.summary.total == 0 {
+                        OverviewLoadingState()
+                    } else if appState.overview.summary.total == 0 {
                         OverviewEmptyState()
                     } else {
                         HealthSummaryCard(summary: appState.overview.summary, state: appState.overview.overallState)
@@ -53,6 +57,134 @@ struct OperationsOverviewView: View {
                 }
             }
         }
+    }
+}
+
+private struct OverviewDataStateCard: View {
+    @EnvironmentObject private var appState: AppState
+
+    private var state: OverviewDataState {
+        if appState.isOffline {
+            return .offline
+        }
+
+        switch appState.monitoringLoadState {
+        case .loading, .refreshing:
+            return .loading
+        case .failed:
+            return .failed
+        case .stale:
+            return .stale
+        case .idle, .loaded, .empty:
+            return appState.isMonitoringDataStale ? .stale : .current
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: state.symbolName)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(state.color)
+                .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(state.title)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(Brand.text)
+                Text(state.message(lastRefreshAt: appState.lastMonitoringRefreshAt))
+                    .font(.system(size: 13, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+            }
+
+            Spacer(minLength: 12)
+
+            if state.canRetry {
+                Button("Aktualisieren") {
+                    Task {
+                        await appState.refreshOverview()
+                    }
+                }
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(Brand.accent)
+                .disabled(appState.monitoringLoadState == .refreshing)
+            } else if state == .loading {
+                ProgressView()
+                    .tint(Brand.accent)
+            }
+        }
+        .webGuardCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(WebGuardAccessibilityID.overviewDataState)
+    }
+}
+
+private enum OverviewDataState: Equatable {
+    case current
+    case loading
+    case stale
+    case offline
+    case failed
+
+    var title: String {
+        switch self {
+        case .current: return "Daten aktuell"
+        case .loading: return "Übersicht wird aktualisiert"
+        case .stale: return "Daten möglicherweise veraltet"
+        case .offline: return "Offline – letzter bekannter Stand"
+        case .failed: return "Keine aktuelle Übersicht verfügbar"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .current: return "checkmark.circle.fill"
+        case .loading: return "arrow.triangle.2.circlepath"
+        case .stale: return "clock.badge.exclamationmark"
+        case .offline: return "wifi.slash"
+        case .failed: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .current: return Brand.success
+        case .loading: return Brand.accent
+        case .stale: return Brand.warning
+        case .offline, .failed: return Brand.danger
+        }
+    }
+
+    var canRetry: Bool {
+        switch self {
+        case .stale, .offline, .failed: return true
+        case .current, .loading: return false
+        }
+    }
+
+    func message(lastRefreshAt: Date?) -> String {
+        guard let lastRefreshAt else {
+            return "Noch keine erfolgreiche Synchronisierung."
+        }
+
+        return "Zuletzt synchronisiert \(lastRefreshAt.formatted(date: .abbreviated, time: .shortened))"
+    }
+}
+
+private struct OverviewLoadingState: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ProgressView()
+                .tint(Brand.accent)
+            Text("Operative Übersicht wird geladen")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(Brand.text)
+            Text("Sobald WebGuard aktuelle Daten liefert, erscheinen Zustand und nächste Aktionen hier.")
+                .font(.system(size: 14, design: .rounded))
+                .foregroundStyle(Brand.mutedText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .webGuardCard()
+        .accessibilityElement(children: .combine)
     }
 }
 
