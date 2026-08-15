@@ -9,6 +9,8 @@ protocol CacheStore {
     func addEvent(_ event: PushEvent)
     func loadNotificationPreferences() -> [String: MonitoringNotificationPreference]
     func saveNotificationPreferences(_ preferences: [String: MonitoringNotificationPreference])
+    func loadNotificationBoard() -> CachedNotificationBoard?
+    func saveNotificationBoard(_ board: CachedNotificationBoard)
     func loadLastMonitoringRefreshAt() -> Date?
     func saveLastMonitoringRefreshAt(_ date: Date)
     func loadOverview() -> MobileOverviewPayload?
@@ -23,12 +25,13 @@ final class LocalCache: CacheStore {
 
     private enum Keys {
         static let schemaVersion = "webguard.cache.schema-version"
-        static let schemaVersionValue = 3
-        static let namespace = "webguard.cache.v3"
+        static let schemaVersionValue = 4
+        static let namespace = "webguard.cache.v4"
         static let monitors = "monitors"
         static let events = "events"
         static let overview = "overview"
         static let notificationPreferences = "notification-preferences"
+        static let notificationBoard = "notification-board"
         static let lastMonitoringRefreshAt = "last-monitoring-refresh-at"
         static let monitoringDetails = "monitoring-details"
         static let legacy = [
@@ -118,6 +121,17 @@ final class LocalCache: CacheStore {
         save(preferences, for: Keys.notificationPreferences)
     }
 
+    func loadNotificationBoard() -> CachedNotificationBoard? {
+        guard let data = data(for: Keys.notificationBoard) else {
+            return nil
+        }
+        return try? decoder.decode(CachedNotificationBoard.self, from: data)
+    }
+
+    func saveNotificationBoard(_ board: CachedNotificationBoard) {
+        save(board, for: Keys.notificationBoard)
+    }
+
     func loadLastMonitoringRefreshAt() -> Date? {
         guard let key = scopedKey(for: Keys.lastMonitoringRefreshAt) else {
             return nil
@@ -170,6 +184,7 @@ final class LocalCache: CacheStore {
             Keys.overview,
             Keys.monitoringDetails,
             Keys.notificationPreferences,
+            Keys.notificationBoard,
             Keys.lastMonitoringRefreshAt
         ].compactMap(scopedKey).forEach(defaults.removeObject(forKey:))
     }

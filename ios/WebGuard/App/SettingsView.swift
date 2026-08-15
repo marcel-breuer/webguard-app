@@ -52,26 +52,17 @@ struct SettingsView: View {
                         }
                         .padding(.bottom, 16)
 
-                        Divider().background(Brand.border)
-                        StaticSettingsRow(systemName: "bolt", title: "Kritische Vorfälle", meta: "Sofort benachrichtigen")
-                        Divider().background(Brand.border)
-                        StaticSettingsRow(
-                            systemName: "checkmark.circle",
-                            title: "Wiederhergestellt",
-                            meta: "Benachrichtigen, wenn wieder online",
-                            color: Brand.success
-                        )
                     }
                     .webGuardCard()
 
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("Kanäle")
+                        Text("Gerätestatus")
                             .font(.system(size: 20, weight: .black, design: .rounded))
                             .foregroundStyle(Brand.text)
                             .padding(.bottom, 18)
-                        StaticSettingsRow(systemName: "iphone", title: "Push-Benachrichtigungen", meta: "Auf diesem Gerät")
+                        DetailField(label: "Push-Gerät", value: appState.session?.deviceID == nil ? "Nicht registriert" : "Registriert")
                         Divider().background(Brand.border)
-                        StaticSettingsRow(systemName: "envelope", title: "E-Mail (optional)", meta: "Nicht konfiguriert")
+                        DetailField(label: "Zustellung", value: pushEnabled ? "Für dieses Gerät aktiviert" : "Für dieses Gerät deaktiviert")
                     }
                     .webGuardCard()
 
@@ -81,7 +72,7 @@ struct SettingsView: View {
                             .foregroundStyle(Brand.text)
                             .padding(.bottom, 8)
 
-                        Text("Steuere kritische Vorfälle pro Monitoring. Das globale Push-Setting bleibt zusätzlich aktiv.")
+                        Text("Wirksame Einstellungen kommen vom Server. Team-Einstellungen können sichtbar, aber nicht bearbeitbar sein.")
                             .font(.system(size: 15, design: .rounded))
                             .foregroundStyle(Brand.mutedText)
                             .padding(.bottom, 12)
@@ -154,7 +145,7 @@ struct MonitoringNotificationPreferenceRow: View {
                     .font(.system(size: 16, weight: .black, design: .rounded))
                     .foregroundStyle(Brand.text)
                     .lineLimit(1)
-                Text(preference == nil ? "Wird geladen" : preference!.notificationOnFailure ? "Vorfälle aktiviert" : "Vorfälle stummgeschaltet")
+                Text(preferenceDescription)
                     .font(.system(size: 14, design: .rounded))
                     .foregroundStyle(Brand.mutedText)
             }
@@ -174,7 +165,7 @@ struct MonitoringNotificationPreferenceRow: View {
                 ))
                 .labelsHidden()
                 .tint(Brand.accent)
-                .disabled(appState.isBusy)
+                .disabled(appState.isBusy || !(preference?.canUpdate ?? false))
                 .accessibilityIdentifier(WebGuardAccessibilityID.notificationPreference(monitor.id))
             }
         }
@@ -192,6 +183,14 @@ struct MonitoringNotificationPreferenceRow: View {
         case .unknown:
             return Brand.accent
         }
+    }
+
+    private var preferenceDescription: String {
+        guard let preference else { return "Wird geladen" }
+        let state = preference.notificationOnFailure ? "Vorfälle aktiviert" : "Vorfälle stummgeschaltet"
+        let source = preference.source == "team_member" ? "Team-Vorgabe" : "Eigene Vorgabe"
+        let channels = preference.notificationChannels.isEmpty ? "keine Kanäle" : preference.notificationChannels.joined(separator: ", ")
+        return "\(state) · \(source) · \(channels) · SSL ab \(preference.sslExpiryWarningDays) Tagen"
     }
 }
 
