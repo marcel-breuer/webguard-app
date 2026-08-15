@@ -40,6 +40,7 @@ struct KnownMonitor: Codable, Identifiable, Equatable, Hashable {
     var name: String
     var target: String
     var status: String?
+    var type: String? = nil
     var lastSeenAt: Date
     var maintenanceActive: Bool? = nil
     var maintenanceFrom: Date? = nil
@@ -79,6 +80,52 @@ struct MonitoringStatusPayload: Decodable {
         case status
         case statusLabel = "status_label"
         case checkedAt = "checked_at"
+    }
+}
+
+struct MonitoringMutationPayload: Encodable, Equatable {
+    var name: String
+    var target: String
+    var type: String
+    var status: String
+    var timeout: Int?
+    var httpMethod: String?
+    var expectedHTTPStatuses: String?
+    var httpHeaders: [String: String]?
+    var port: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case name, target, type, status, timeout, port
+        case httpMethod = "http_method"
+        case expectedHTTPStatuses = "expected_http_statuses"
+        case httpHeaders = "http_headers"
+    }
+}
+
+struct MonitoringManagementResponse: Decodable, Equatable {
+    var data: MonitoringManagementItem
+}
+
+struct MonitoringManagementItem: Decodable, Equatable {
+    var id: String
+    var name: String
+    var target: String
+    var type: String
+    var status: String
+    var ownership: MobileMonitoringOwnership?
+
+    func knownMonitor(fallback: KnownMonitor? = nil) -> KnownMonitor {
+        KnownMonitor(
+            id: id,
+            name: name,
+            target: target,
+            status: status,
+            type: type,
+            lastSeenAt: fallback?.lastSeenAt ?? Date(),
+            maintenanceActive: fallback?.maintenanceActive,
+            maintenanceFrom: fallback?.maintenanceFrom,
+            maintenanceUntil: fallback?.maintenanceUntil
+        )
     }
 }
 
@@ -647,6 +694,7 @@ struct MonitoringSummary: Decodable, Identifiable {
     var name: String
     var target: String
     var status: String?
+    var type: String?
     var maintenanceActive: Bool?
     var maintenanceFrom: Date?
     var maintenanceUntil: Date?

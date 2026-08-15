@@ -390,6 +390,47 @@ final class AppState: ObservableObject {
         return monitoringDetails[monitoringID]?.payload
     }
 
+    func saveMonitoring(id: String?, payload: MonitoringMutationPayload) async -> KnownMonitor? {
+        guard let client = apiClient else { return nil }
+        operationState = .savingMonitoring
+        defer { operationState = .idle }
+        do {
+            let response: MonitoringManagementResponse
+            if let id {
+                response = try await client.updateMonitoring(id: id, payload: payload)
+            } else {
+                response = try await client.createMonitoring(payload)
+            }
+            let updated = response.data.knownMonitor(fallback: id.flatMap { existingID in monitors.first { $0.id == existingID } })
+            monitors.removeAll { $0.id == updated.id }
+            monitors.insert(updated, at: 0)
+            cache.saveMonitors(monitors)
+            updateLastAPICallAt()
+            return updated
+        } catch WebGuardAPIError.unauthorized {
+            await signOut(); show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+        return nil
+    }
+
+    func deleteMonitoring(_ id: String) async -> Bool {
+        guard let client = apiClient else { return false }
+        operationState = .deletingMonitoring
+        defer { operationState = .idle }
+        do {
+            try await client.deleteMonitoring(id: id)
+            monitors.removeAll { $0.id == id }
+            monitoringDetails[id] = nil
+            cache.saveMonitors(monitors)
+            cache.saveMonitoringDetails(monitoringDetails)
+            updateLastAPICallAt()
+            return true
+        } catch WebGuardAPIError.unauthorized {
+            await signOut(); show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+        return false
+    }
+
     func refreshOverview() async {
         guard let client = apiClient else {
             return

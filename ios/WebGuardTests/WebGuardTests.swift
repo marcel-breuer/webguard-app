@@ -450,6 +450,18 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
         try detailResult.get()
     }
 
+    func createMonitoring(_ payload: MonitoringMutationPayload) async throws -> MonitoringManagementResponse {
+        throw TestError.unexpectedCall
+    }
+
+    func updateMonitoring(id: String, payload: MonitoringMutationPayload) async throws -> MonitoringManagementResponse {
+        throw TestError.unexpectedCall
+    }
+
+    func deleteMonitoring(id: String) async throws {
+        throw TestError.unexpectedCall
+    }
+
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
         throw TestError.unexpectedCall
     }

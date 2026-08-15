@@ -33,6 +33,9 @@ protocol WebGuardAPIClientProtocol {
     func revokeMobilePushDevice(deviceID: String) async throws
     func monitoringStatus(monitorID: String) async throws -> MonitoringStatusPayload
     func monitoringDetail(monitorID: String, days: Int, incidentOffset: Int) async throws -> MobileMonitoringDetailResponse
+    func createMonitoring(_ payload: MonitoringMutationPayload) async throws -> MonitoringManagementResponse
+    func updateMonitoring(id: String, payload: MonitoringMutationPayload) async throws -> MonitoringManagementResponse
+    func deleteMonitoring(id: String) async throws
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference
     func updateMonitoringNotificationPreference(
         monitoringID: String,
@@ -83,6 +86,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
                 name: monitoring.name,
                 target: monitoring.target,
                 status: monitoring.status,
+                type: monitoring.type,
                 lastSeenAt: Date(),
                 maintenanceActive: monitoring.maintenanceActive,
                 maintenanceFrom: monitoring.maintenanceFrom,
@@ -149,6 +153,18 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
             "/mobile/monitorings/\(monitorID)?days=\(normalizedDays)&incident_limit=20&incident_offset=\(normalizedOffset)",
             method: "GET"
         )
+    }
+
+    func createMonitoring(_ payload: MonitoringMutationPayload) async throws -> MonitoringManagementResponse {
+        try await request("/monitorings", method: "POST", body: payload)
+    }
+
+    func updateMonitoring(id: String, payload: MonitoringMutationPayload) async throws -> MonitoringManagementResponse {
+        try await request("/monitorings/\(id)", method: "PATCH", body: payload)
+    }
+
+    func deleteMonitoring(id: String) async throws {
+        try await requestNoResponse("/monitorings/\(id)", method: "DELETE")
     }
 
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
