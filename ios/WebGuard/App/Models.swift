@@ -41,6 +41,7 @@ struct KnownMonitor: Codable, Identifiable, Equatable, Hashable {
     var target: String
     var status: String?
     var type: String? = nil
+    var ownership: MobileMonitoringOwnership? = nil
     var lastSeenAt: Date
     var maintenanceActive: Bool? = nil
     var maintenanceFrom: Date? = nil
@@ -106,6 +107,55 @@ struct MonitoringManagementResponse: Decodable, Equatable {
     var data: MonitoringManagementItem
 }
 
+struct MobileMonitoringGroupListResponse: Decodable, Equatable {
+    var data: [MobileMonitoringGroup]
+}
+
+struct MobileMonitoringGroupResponse: Decodable, Equatable {
+    var data: MobileMonitoringGroup
+}
+
+struct MobileMonitoringGroup: Codable, Identifiable, Equatable {
+    var id: String
+    var name: String
+    var description: String?
+    var ownership: MobileMonitoringOwnership
+    var assignableMonitoringCount: Int
+    var assignments: [MobileMonitoringAssignment]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, description, ownership, assignments
+        case assignableMonitoringCount = "assignable_monitoring_count"
+    }
+}
+
+struct MobileMonitoringAssignment: Codable, Identifiable, Equatable {
+    var id: String
+    var name: String
+    var target: String
+    var type: String?
+    var status: String?
+    var ownership: MobileMonitoringOwnership
+}
+
+struct MonitoringGroupMutationPayload: Encodable {
+    var name: String
+    var description: String?
+    var monitoringIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case name, description
+        case monitoringIDs = "monitoring_ids"
+    }
+}
+
+struct TeamListResponse: Decodable { var data: [TeamSummary] }
+struct TeamSummary: Decodable, Identifiable {
+    var id: String
+    var name: String
+    var description: String?
+}
+
 struct MonitoringManagementItem: Decodable, Equatable {
     var id: String
     var name: String
@@ -121,6 +171,7 @@ struct MonitoringManagementItem: Decodable, Equatable {
             target: target,
             status: status,
             type: type,
+            ownership: ownership,
             lastSeenAt: fallback?.lastSeenAt ?? Date(),
             maintenanceActive: fallback?.maintenanceActive,
             maintenanceFrom: fallback?.maintenanceFrom,
@@ -184,7 +235,7 @@ struct MobileMonitoringDetailSummary: Codable, Equatable {
     }
 }
 
-struct MobileMonitoringOwnership: Codable, Equatable {
+struct MobileMonitoringOwnership: Codable, Equatable, Hashable {
     var type: String?
     var canManage: Bool?
 
@@ -695,6 +746,7 @@ struct MonitoringSummary: Decodable, Identifiable {
     var target: String
     var status: String?
     var type: String?
+    var ownership: MobileMonitoringOwnership?
     var maintenanceActive: Bool?
     var maintenanceFrom: Date?
     var maintenanceUntil: Date?

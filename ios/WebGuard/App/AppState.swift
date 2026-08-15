@@ -9,6 +9,8 @@ final class AppState: ObservableObject {
     @Published var events: [PushEvent] = []
     @Published var notificationPreferences: [String: MonitoringNotificationPreference] = [:]
     @Published private(set) var monitoringDetails: [String: CachedMonitoringDetail] = [:]
+    @Published private(set) var monitoringGroups: [MobileMonitoringGroup] = []
+    @Published private(set) var teams: [TeamSummary] = []
     @Published var pendingMonitoringID: String?
     @Published var isOffline = false
     @Published var lastMonitoringRefreshAt: Date?
@@ -429,6 +431,44 @@ final class AppState: ObservableObject {
             await signOut(); show(WebGuardAPIError.unauthorized)
         } catch { show(error) }
         return false
+    }
+
+    func refreshCollaboration() async {
+        guard let client = apiClient else { return }
+        do {
+            async let groups = client.monitoringGroups()
+            async let teamList = client.teams()
+            monitoringGroups = try await groups
+            teams = try await teamList
+        } catch WebGuardAPIError.unauthorized { await signOut(); show(WebGuardAPIError.unauthorized) }
+        catch { show(error) }
+    }
+
+    func saveMonitoringGroup(id: String?, payload: MonitoringGroupMutationPayload) async -> Bool {
+        guard let client = apiClient else { return false }
+        do {
+            let group = try await client.saveMonitoringGroup(id: id, payload: payload)
+            monitoringGroups.removeAll { $0.id == group.id }; monitoringGroups.append(group)
+            monitoringGroups.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            return true
+        } catch { show(error); return false }
+    }
+
+    func deleteMonitoringGroup(_ id: String) async -> Bool {
+        guard let client = apiClient else { return false }
+        do { try await client.deleteMonitoringGroup(id: id); monitoringGroups.removeAll { $0.id == id }; return true }
+        catch { show(error); return false }
+    }
+
+    func setMonitoringOwnership(_ monitoring: KnownMonitor, teamID: String?) async -> KnownMonitor? {
+        guard let client = apiClient else { return nil }
+        do {
+            let response = try await client.moveMonitoring(id: monitoring.id, toTeamID: teamID)
+            let updated = response.data.knownMonitor(fallback: monitoring)
+            if let index = monitors.firstIndex(where: { $0.id == updated.id }) { monitors[index] = updated }
+            cache.saveMonitors(monitors)
+            return updated
+        } catch { show(error); return nil }
     }
 
     func refreshOverview() async {
