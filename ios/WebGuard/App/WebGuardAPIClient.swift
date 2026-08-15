@@ -41,6 +41,11 @@ protocol WebGuardAPIClientProtocol {
     func deleteMonitoringGroup(id: String) async throws
     func teams() async throws -> [TeamSummary]
     func moveMonitoring(id: String, toTeamID: String?) async throws -> MonitoringManagementResponse
+    func maintenanceWindows(kind: String, state: String?) async throws -> [MobileMaintenanceWindow]
+    func maintenanceCapabilities() async throws -> MobileMaintenanceCapabilities
+    func scheduleMaintenance(_ payload: MaintenanceSchedulePayload) async throws -> MobileMaintenanceWindow
+    func setRecurringMaintenanceEnabled(id: String, enabled: Bool) async throws -> MobileMaintenanceWindow
+    func cancelOneOffMaintenance(monitoringID: String) async throws
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference
     func updateMonitoringNotificationPreference(
         monitoringID: String,
@@ -201,6 +206,31 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
             return try await request("/monitorings/\(id)/team-ownership", method: "POST", body: ["team_id": toTeamID])
         }
         return try await request("/monitorings/\(id)/team-ownership", method: "DELETE")
+    }
+
+    func maintenanceWindows(kind: String, state: String? = nil) async throws -> [MobileMaintenanceWindow] {
+        let filter = state.map { "&state=\($0)" } ?? ""
+        let response: MobileMaintenanceListResponse = try await request("/mobile/maintenance/\(kind)?per_page=100\(filter)", method: "GET")
+        return response.data
+    }
+
+    func maintenanceCapabilities() async throws -> MobileMaintenanceCapabilities {
+        let response: MobileMaintenanceCapabilitiesResponse = try await request("/mobile/maintenance/capabilities", method: "GET")
+        return response.data
+    }
+
+    func scheduleMaintenance(_ payload: MaintenanceSchedulePayload) async throws -> MobileMaintenanceWindow {
+        let response: MobileMaintenanceResponse = try await request("/mobile/maintenance", method: "POST", body: payload)
+        return response.data
+    }
+
+    func setRecurringMaintenanceEnabled(id: String, enabled: Bool) async throws -> MobileMaintenanceWindow {
+        let response: MobileMaintenanceResponse = try await request("/mobile/maintenance/recurring/\(id)", method: "PATCH", body: ["enabled": enabled])
+        return response.data
+    }
+
+    func cancelOneOffMaintenance(monitoringID: String) async throws {
+        try await requestNoResponse("/mobile/maintenance/one-off/\(monitoringID)", method: "DELETE")
     }
 
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {

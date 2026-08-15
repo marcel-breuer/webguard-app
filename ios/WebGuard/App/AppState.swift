@@ -11,6 +11,9 @@ final class AppState: ObservableObject {
     @Published private(set) var monitoringDetails: [String: CachedMonitoringDetail] = [:]
     @Published private(set) var monitoringGroups: [MobileMonitoringGroup] = []
     @Published private(set) var teams: [TeamSummary] = []
+    @Published private(set) var oneOffMaintenance: [MobileMaintenanceWindow] = []
+    @Published private(set) var recurringMaintenance: [MobileMaintenanceWindow] = []
+    @Published private(set) var maintenanceCapabilities: MobileMaintenanceCapabilities?
     @Published var pendingMonitoringID: String?
     @Published var isOffline = false
     @Published var lastMonitoringRefreshAt: Date?
@@ -469,6 +472,31 @@ final class AppState: ObservableObject {
             cache.saveMonitors(monitors)
             return updated
         } catch { show(error); return nil }
+    }
+
+    func refreshMaintenance() async {
+        guard let client = apiClient else { return }
+        do {
+            async let oneOff = client.maintenanceWindows(kind: "one-off", state: nil)
+            async let recurring = client.maintenanceWindows(kind: "recurring", state: nil)
+            async let capabilities = client.maintenanceCapabilities()
+            oneOffMaintenance = try await oneOff; recurringMaintenance = try await recurring; maintenanceCapabilities = try await capabilities
+        } catch { show(error) }
+    }
+
+    func scheduleMaintenance(_ payload: MaintenanceSchedulePayload) async -> Bool {
+        guard let client = apiClient else { return false }
+        do { _ = try await client.scheduleMaintenance(payload); await refreshMaintenance(); return true } catch { show(error); return false }
+    }
+
+    func setRecurringMaintenanceEnabled(_ window: MobileMaintenanceWindow, enabled: Bool) async {
+        guard let client = apiClient else { return }
+        do { let updated = try await client.setRecurringMaintenanceEnabled(id: window.id, enabled: enabled); if let i = recurringMaintenance.firstIndex(where: { $0.id == updated.id }) { recurringMaintenance[i] = updated } } catch { show(error) }
+    }
+
+    func cancelOneOffMaintenance(_ window: MobileMaintenanceWindow) async {
+        guard let client = apiClient else { return }
+        do { try await client.cancelOneOffMaintenance(monitoringID: window.target.id); oneOffMaintenance.removeAll { $0.id == window.id } } catch { show(error) }
     }
 
     func refreshOverview() async {
