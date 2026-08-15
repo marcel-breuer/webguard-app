@@ -256,6 +256,26 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(cache.loadMonitors(), [monitor])
         XCTAssertNil(state.alert)
     }
+
+    func testDetailRefreshKeepsCachedPayloadWhenOffline() async throws {
+        let cachedDetail = try Fixtures.monitoringDetail()
+        let monitor = Fixtures.monitor(status: "up")
+        let cache = InMemoryCacheStore(monitors: [monitor])
+        cache.monitoringDetails = [monitor.id: CachedMonitoringDetail(payload: cachedDetail, fetchedAt: Date())]
+        let api = MockAPIClient()
+        api.detailResult = .failure(TestError.requestFailed)
+        let state = AppState(
+            keychain: InMemorySessionStore(session: Fixtures.session()),
+            cache: cache,
+            apnsService: .shared,
+            clientFactory: { _ in api }
+        )
+
+        let result = await state.refreshMonitoringDetail(monitor.id)
+
+        XCTAssertEqual(result, cachedDetail)
+        XCTAssertTrue(state.isOffline)
+    }
 }
 
 private enum TestError: Error {
@@ -301,6 +321,17 @@ private enum Fixtures {
         overview.recommendedAction = recommendedAction
         return overview
     }
+
+    static func monitoringDetail() throws -> MobileMonitoringDetailResponse {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(
+            MobileMonitoringDetailResponse.self,
+            from: """
+            {"data":{"summary":{"id":"monitor-1","name":"API","target":"https://example.test"},"current_check":{},"availability":{"has_data":false,"uptime":{"minutes":0,"total":0},"downtime":{"minutes":0,"total":0},"unknown":{"minutes":0,"total":0}},"response_times":{"data":[],"aggregated":{}},"incidents":[],"heatmap":[],"maintenance":{"active":false,"has_recurring_window":false},"ssl":null,"domain":null,"uptime_calendar":{},"capabilities":{"can_manage":false}},"meta":{"generated_at":"2026-08-15T08:00:00Z","range":{"days":30,"from":"2026-07-16T00:00:00Z","to":"2026-08-15T08:00:00Z"},"incidents":{"limit":20,"offset":0,"has_more":false,"next_offset":null},"sections":{}}}
+            """.data(using: .utf8)!
+        )
+    }
 }
 
 private final class InMemorySessionStore: SessionStore {
@@ -325,6 +356,7 @@ private final class InMemoryCacheStore: CacheStore {
     var monitors: [KnownMonitor]
     var events: [PushEvent]
     var overview: MobileOverviewPayload?
+    var monitoringDetails: [String: CachedMonitoringDetail] = [:]
     var notificationPreferences: [String: MonitoringNotificationPreference]
     var lastRefreshAt: Date?
 
@@ -360,10 +392,13 @@ private final class InMemoryCacheStore: CacheStore {
     func saveLastMonitoringRefreshAt(_ date: Date) { lastRefreshAt = date }
     func loadOverview() -> MobileOverviewPayload? { overview }
     func saveOverview(_ overview: MobileOverviewPayload) { self.overview = overview }
+    func loadMonitoringDetails() -> [String: CachedMonitoringDetail] { monitoringDetails }
+    func saveMonitoringDetails(_ details: [String: CachedMonitoringDetail]) { monitoringDetails = details }
     func clear() {
         monitors = []
         events = []
         overview = nil
+        monitoringDetails = [:]
         notificationPreferences = [:]
         lastRefreshAt = nil
     }
@@ -373,6 +408,7 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
     var loginResult: Result<MobileLoginData, Error> = .failure(TestError.unexpectedCall)
     var monitoringsResult: Result<[KnownMonitor], Error> = .failure(TestError.unexpectedCall)
     var overviewResult: Result<MobileOverviewPayload, Error> = .success(.fallback(monitors: [], events: []))
+    var detailResult: Result<MobileMonitoringDetailResponse, Error> = .failure(TestError.unexpectedCall)
     var logoutCount = 0
 
     func login(email: String, password: String, deviceContext: DeviceContext) async throws -> MobileLoginData {
@@ -408,6 +444,10 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
 
     func monitoringStatus(monitorID: String) async throws -> MonitoringStatusPayload {
         throw TestError.unexpectedCall
+    }
+
+    func monitoringDetail(monitorID: String, days: Int, incidentOffset: Int) async throws -> MobileMonitoringDetailResponse {
+        try detailResult.get()
     }
 
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {

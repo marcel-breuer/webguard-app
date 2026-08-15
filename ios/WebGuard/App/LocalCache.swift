@@ -13,6 +13,8 @@ protocol CacheStore {
     func saveLastMonitoringRefreshAt(_ date: Date)
     func loadOverview() -> MobileOverviewPayload?
     func saveOverview(_ overview: MobileOverviewPayload)
+    func loadMonitoringDetails() -> [String: CachedMonitoringDetail]
+    func saveMonitoringDetails(_ details: [String: CachedMonitoringDetail])
     func clear()
 }
 
@@ -21,13 +23,14 @@ final class LocalCache: CacheStore {
 
     private enum Keys {
         static let schemaVersion = "webguard.cache.schema-version"
-        static let schemaVersionValue = 2
-        static let namespace = "webguard.cache.v2"
+        static let schemaVersionValue = 3
+        static let namespace = "webguard.cache.v3"
         static let monitors = "monitors"
         static let events = "events"
         static let overview = "overview"
         static let notificationPreferences = "notification-preferences"
         static let lastMonitoringRefreshAt = "last-monitoring-refresh-at"
+        static let monitoringDetails = "monitoring-details"
         static let legacy = [
             "webguard.known-monitors",
             "webguard.notification-events",
@@ -40,6 +43,7 @@ final class LocalCache: CacheStore {
     private enum Limits {
         static let monitors = 100
         static let events = 50
+        static let monitoringDetails = 20
     }
 
     private let defaults: UserDefaults
@@ -142,11 +146,29 @@ final class LocalCache: CacheStore {
         save(overview, for: Keys.overview)
     }
 
+    func loadMonitoringDetails() -> [String: CachedMonitoringDetail] {
+        guard let data = data(for: Keys.monitoringDetails),
+              let value = try? decoder.decode([String: CachedMonitoringDetail].self, from: data) else {
+            return [:]
+        }
+
+        return value
+    }
+
+    func saveMonitoringDetails(_ details: [String: CachedMonitoringDetail]) {
+        let bounded = details
+            .sorted { $0.value.fetchedAt > $1.value.fetchedAt }
+            .prefix(Limits.monitoringDetails)
+            .map { ($0.key, $0.value) }
+        save(Dictionary(uniqueKeysWithValues: bounded), for: Keys.monitoringDetails)
+    }
+
     func clear() {
         [
             Keys.monitors,
             Keys.events,
             Keys.overview,
+            Keys.monitoringDetails,
             Keys.notificationPreferences,
             Keys.lastMonitoringRefreshAt
         ].compactMap(scopedKey).forEach(defaults.removeObject(forKey:))

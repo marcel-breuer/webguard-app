@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
     @Published var overview = MobileOverviewPayload.fallback(monitors: [], events: [])
     @Published var events: [PushEvent] = []
     @Published var notificationPreferences: [String: MonitoringNotificationPreference] = [:]
+    @Published private(set) var monitoringDetails: [String: CachedMonitoringDetail] = [:]
     @Published var pendingMonitoringID: String?
     @Published var isOffline = false
     @Published var lastMonitoringRefreshAt: Date?
@@ -56,6 +57,7 @@ final class AppState: ObservableObject {
         events = cache.loadEvents()
         overview = cache.loadOverview() ?? .fallback(monitors: monitors, events: events)
         notificationPreferences = cache.loadNotificationPreferences()
+        monitoringDetails = cache.loadMonitoringDetails()
         lastMonitoringRefreshAt = cache.loadLastMonitoringRefreshAt()
         authenticationState = session == nil ? .signedOut : .authenticated
         monitoringLoadState = monitors.isEmpty ? .empty : (isMonitoringDataStale ? .stale : .loaded)
@@ -197,6 +199,7 @@ final class AppState: ObservableObject {
             session = next
             events = cache.loadEvents()
             notificationPreferences = cache.loadNotificationPreferences()
+            monitoringDetails = cache.loadMonitoringDetails()
             cache.saveMonitors(monitorings)
             let refreshedAt = Date()
             cache.saveLastMonitoringRefreshAt(refreshedAt)
@@ -355,6 +358,38 @@ final class AppState: ObservableObject {
         return nil
     }
 
+    func monitoringDetail(for monitoringID: String) -> CachedMonitoringDetail? {
+        monitoringDetails[monitoringID]
+    }
+
+    func refreshMonitoringDetail(_ monitoringID: String, incidentOffset: Int = 0) async -> MobileMonitoringDetailResponse? {
+        guard let client = apiClient else {
+            return monitoringDetails[monitoringID]?.payload
+        }
+
+        do {
+            let detail = try await client.monitoringDetail(
+                monitorID: monitoringID,
+                days: 30,
+                incidentOffset: incidentOffset
+            )
+            let cached = CachedMonitoringDetail(payload: detail, fetchedAt: Date())
+            monitoringDetails[monitoringID] = cached
+            cache.saveMonitoringDetails(monitoringDetails)
+            isOffline = false
+            updateLastAPICallAt()
+            return detail
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch {
+            isOffline = true
+            show(error)
+        }
+
+        return monitoringDetails[monitoringID]?.payload
+    }
+
     func refreshOverview() async {
         guard let client = apiClient else {
             return
@@ -472,6 +507,7 @@ final class AppState: ObservableObject {
         events = []
         overview = .fallback(monitors: [], events: [])
         notificationPreferences = [:]
+        monitoringDetails = [:]
         pendingMonitoringID = nil
         isOffline = false
         lastMonitoringRefreshAt = nil
