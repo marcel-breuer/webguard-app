@@ -46,6 +46,9 @@ protocol WebGuardAPIClientProtocol {
     func scheduleMaintenance(_ payload: MaintenanceSchedulePayload) async throws -> MobileMaintenanceWindow
     func setRecurringMaintenanceEnabled(id: String, enabled: Bool) async throws -> MobileMaintenanceWindow
     func cancelOneOffMaintenance(monitoringID: String) async throws
+    func notificationBoard(cursor: String?, eventType: String?, showRead: Bool) async throws -> MobileNotificationBoardResponse
+    func markNotificationRead(id: String) async throws
+    func markAllNotificationsRead() async throws -> Int
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference
     func updateMonitoringNotificationPreference(
         monitoringID: String,
@@ -233,9 +236,34 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         try await requestNoResponse("/mobile/maintenance/one-off/\(monitoringID)", method: "DELETE")
     }
 
+    func notificationBoard(cursor: String? = nil, eventType: String? = nil, showRead: Bool) async throws -> MobileNotificationBoardResponse {
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "limit", value: "50"),
+            URLQueryItem(name: "show_read", value: showRead ? "true" : "false")
+        ]
+        if let cursor {
+            components.queryItems?.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+        if let eventType {
+            components.queryItems?.append(URLQueryItem(name: "event_type", value: eventType))
+        }
+        let query = components.percentEncodedQuery.map { "?\($0)" } ?? ""
+        return try await request("/mobile/notification-board\(query)", method: "GET")
+    }
+
+    func markNotificationRead(id: String) async throws {
+        try await requestNoResponse("/mobile/notification-board/\(id)/read", method: "PATCH")
+    }
+
+    func markAllNotificationsRead() async throws -> Int {
+        let response: MobileNotificationReadResponse = try await request("/mobile/notification-board/read-all", method: "PATCH")
+        return response.meta?.unreadCount ?? 0
+    }
+
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
         let response: MonitoringNotificationPreferenceResponse = try await request(
-            "/monitorings/\(monitorID)/notification-preferences",
+            "/mobile/monitorings/\(monitorID)/notification-preferences",
             method: "GET"
         )
         return response.data
@@ -253,7 +281,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
             sslExpiryWarningDays: sslExpiryWarningDays
         )
         let response: MonitoringNotificationPreferenceResponse = try await request(
-            "/monitorings/\(monitoringID)/notification-preferences",
+            "/mobile/monitorings/\(monitoringID)/notification-preferences",
             method: "PATCH",
             body: payload
         )

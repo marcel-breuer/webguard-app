@@ -826,6 +826,10 @@ struct MonitoringNotificationPreference: Codable, Identifiable, Equatable, Hasha
     var notificationOnFailure: Bool
     var notificationChannels: [String]
     var sslExpiryWarningDays: Int
+    var source: String
+    var permittedChannels: [String]
+    var canUpdate: Bool
+    var updatedAt: Date?
 
     var id: String {
         monitoringID
@@ -833,9 +837,62 @@ struct MonitoringNotificationPreference: Codable, Identifiable, Equatable, Hasha
 
     enum CodingKeys: String, CodingKey {
         case monitoringID = "monitoring_id"
+        case effective, source
+        case permittedChannels = "permitted_channels"
+        case canUpdate = "can_update"
+        case updatedAt = "updated_at"
+    }
+
+    private enum EffectiveKeys: String, CodingKey {
         case notificationOnFailure = "notification_on_failure"
         case notificationChannels = "notification_channels"
         case sslExpiryWarningDays = "ssl_expiry_warning_days"
+    }
+
+    init(
+        monitoringID: String,
+        notificationOnFailure: Bool,
+        notificationChannels: [String],
+        sslExpiryWarningDays: Int,
+        source: String,
+        permittedChannels: [String],
+        canUpdate: Bool,
+        updatedAt: Date?
+    ) {
+        self.monitoringID = monitoringID
+        self.notificationOnFailure = notificationOnFailure
+        self.notificationChannels = notificationChannels
+        self.sslExpiryWarningDays = sslExpiryWarningDays
+        self.source = source
+        self.permittedChannels = permittedChannels
+        self.canUpdate = canUpdate
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let effective = try container.nestedContainer(keyedBy: EffectiveKeys.self, forKey: .effective)
+        monitoringID = try container.decode(String.self, forKey: .monitoringID)
+        notificationOnFailure = try effective.decode(Bool.self, forKey: .notificationOnFailure)
+        notificationChannels = try effective.decode([String].self, forKey: .notificationChannels)
+        sslExpiryWarningDays = try effective.decode(Int.self, forKey: .sslExpiryWarningDays)
+        source = try container.decode(String.self, forKey: .source)
+        permittedChannels = try container.decode([String].self, forKey: .permittedChannels)
+        canUpdate = try container.decode(Bool.self, forKey: .canUpdate)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(monitoringID, forKey: .monitoringID)
+        var effective = container.nestedContainer(keyedBy: EffectiveKeys.self, forKey: .effective)
+        try effective.encode(notificationOnFailure, forKey: .notificationOnFailure)
+        try effective.encode(notificationChannels, forKey: .notificationChannels)
+        try effective.encode(sslExpiryWarningDays, forKey: .sslExpiryWarningDays)
+        try container.encode(source, forKey: .source)
+        try container.encode(permittedChannels, forKey: .permittedChannels)
+        try container.encode(canUpdate, forKey: .canUpdate)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
     }
 }
 
@@ -853,6 +910,72 @@ struct MonitoringNotificationPreferenceUpdatePayload: Encodable {
         case notificationChannels = "notification_channels"
         case sslExpiryWarningDays = "ssl_expiry_warning_days"
     }
+}
+
+struct MobileNotificationBoardResponse: Decodable {
+    var data: [MobileNotificationBoardEntry]
+    var meta: MobileNotificationBoardMeta
+}
+
+struct MobileNotificationBoardMeta: Codable, Equatable {
+    var nextCursor: String?
+    var hasMore: Bool
+    var unreadCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case nextCursor = "next_cursor"
+        case hasMore = "has_more"
+        case unreadCount = "unread_count"
+    }
+}
+
+struct MobileNotificationBoardEntry: Codable, Identifiable, Equatable, Hashable {
+    var id: String
+    var eventType: String
+    var severity: String
+    var message: String
+    var occurredAt: Date
+    var read: Bool
+    var deliveryStatus: String
+    var monitoring: MobileNotificationBoardMonitoring
+    var cursor: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, message, read, monitoring, cursor, severity
+        case eventType = "event_type"
+        case occurredAt = "occurred_at"
+        case deliveryStatus = "delivery_status"
+    }
+}
+
+struct MobileNotificationBoardMonitoring: Codable, Equatable, Hashable {
+    var id: String
+    var name: String
+    var target: String
+}
+
+struct MobileNotificationReadResponse: Decodable {
+    var data: MobileNotificationReadData
+    var meta: MobileNotificationReadMeta?
+}
+
+struct MobileNotificationReadData: Decodable {
+    var id: String?
+    var read: Bool
+}
+
+struct MobileNotificationReadMeta: Decodable {
+    var unreadCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case unreadCount = "unread_count"
+    }
+}
+
+struct CachedNotificationBoard: Codable, Equatable {
+    var entries: [MobileNotificationBoardEntry]
+    var meta: MobileNotificationBoardMeta
+    var fetchedAt: Date
 }
 
 struct MobileLoginPayload: Encodable {

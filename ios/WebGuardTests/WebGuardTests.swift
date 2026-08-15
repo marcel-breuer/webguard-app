@@ -52,6 +52,25 @@ final class WebGuardTests: XCTestCase {
         XCTAssertEqual(device.lastSeenAt, "2026-06-27T08:30:00Z")
     }
 
+    func testNotificationBoardAndEffectivePreferenceDecodeCoreContract() throws {
+        let board = """
+        {"data":[{"id":"notification-1","event_type":"ssl_expiring","severity":"warning","message":"Certificate expires soon","occurred_at":"2026-08-15T10:00:00Z","read":false,"delivery_status":"failed","monitoring":{"id":"monitor-1","name":"Example","target":"https://example.test"},"cursor":"opaque-cursor"}],"meta":{"next_cursor":"next","has_more":true,"unread_count":3}}
+        """.data(using: .utf8)!
+        let preference = """
+        {"data":{"monitoring_id":"monitor-1","effective":{"notification_on_failure":true,"notification_channels":["mail","apns"],"ssl_expiry_warning_days":14},"source":"team_member","permitted_channels":["mail","apns"],"can_update":false,"updated_at":"2026-08-15T10:00:00Z"}}
+        """.data(using: .utf8)!
+        let decoder = WebGuardJSONCoding.makeDecoder()
+
+        let decodedBoard = try decoder.decode(MobileNotificationBoardResponse.self, from: board)
+        let decodedPreference = try decoder.decode(MonitoringNotificationPreferenceResponse.self, from: preference)
+
+        XCTAssertEqual(decodedBoard.data.first?.eventType, "ssl_expiring")
+        XCTAssertEqual(decodedBoard.meta.unreadCount, 3)
+        XCTAssertEqual(decodedPreference.data.source, "team_member")
+        XCTAssertFalse(decodedPreference.data.canUpdate)
+        XCTAssertEqual(decodedPreference.data.sslExpiryWarningDays, 14)
+    }
+
     func testWidgetSnapshotRoundTripsStatusData() throws {
         let snapshot = WidgetSnapshot(
             generatedAt: Date(timeIntervalSince1970: 0),
@@ -194,6 +213,39 @@ final class AppStateTests: XCTestCase {
         XCTAssertGreaterThan(state.lastMonitoringRefreshAt ?? .distantPast, staleRefresh)
     }
 
+    func testNotificationBoardRefreshCachesServerEntriesAndUnreadCount() async {
+        let entry = MobileNotificationBoardEntry(
+            id: "notification-1",
+            eventType: "incident",
+            severity: "critical",
+            message: "Example is down",
+            occurredAt: Date(),
+            read: false,
+            deliveryStatus: "unknown",
+            monitoring: MobileNotificationBoardMonitoring(id: "monitor-1", name: "Example", target: "https://example.test"),
+            cursor: "cursor-1"
+        )
+        let cache = InMemoryCacheStore()
+        let api = MockAPIClient()
+        api.notificationBoardResult = .success(MobileNotificationBoardResponse(
+            data: [entry],
+            meta: MobileNotificationBoardMeta(nextCursor: "next", hasMore: true, unreadCount: 1)
+        ))
+        let state = AppState(
+            keychain: InMemorySessionStore(session: Fixtures.session()),
+            cache: cache,
+            apnsService: .shared,
+            clientFactory: { _ in api }
+        )
+
+        await state.refreshNotificationBoard()
+
+        XCTAssertEqual(state.notificationBoard, [entry])
+        XCTAssertEqual(state.notificationBoardMeta.unreadCount, 1)
+        XCTAssertEqual(cache.loadNotificationBoard()?.entries, [entry])
+        XCTAssertFalse(state.isNotificationBoardStale)
+    }
+
     func testUnauthorizedOverviewClearsSessionCachesAndWidgetData() async {
         let monitor = Fixtures.monitor(status: "down")
         let cache = InMemoryCacheStore(
@@ -234,6 +286,10 @@ final class AppStateTests: XCTestCase {
             user: AuthenticatedUser(id: "user-1", name: "Test User", email: "test@example.test")
         ))
         api.monitoringsResult = .success([monitor])
+        api.notificationBoardResult = .success(MobileNotificationBoardResponse(
+            data: [],
+            meta: MobileNotificationBoardMeta(nextCursor: nil, hasMore: false, unreadCount: 0)
+        ))
 
         let state = AppState(
             keychain: sessionStore,
@@ -358,6 +414,7 @@ private final class InMemoryCacheStore: CacheStore {
     var overview: MobileOverviewPayload?
     var monitoringDetails: [String: CachedMonitoringDetail] = [:]
     var notificationPreferences: [String: MonitoringNotificationPreference]
+    var notificationBoard: CachedNotificationBoard?
     var lastRefreshAt: Date?
 
     init(
@@ -388,6 +445,8 @@ private final class InMemoryCacheStore: CacheStore {
     func saveNotificationPreferences(_ preferences: [String: MonitoringNotificationPreference]) {
         notificationPreferences = preferences
     }
+    func loadNotificationBoard() -> CachedNotificationBoard? { notificationBoard }
+    func saveNotificationBoard(_ board: CachedNotificationBoard) { notificationBoard = board }
     func loadLastMonitoringRefreshAt() -> Date? { lastRefreshAt }
     func saveLastMonitoringRefreshAt(_ date: Date) { lastRefreshAt = date }
     func loadOverview() -> MobileOverviewPayload? { overview }
@@ -400,6 +459,7 @@ private final class InMemoryCacheStore: CacheStore {
         overview = nil
         monitoringDetails = [:]
         notificationPreferences = [:]
+        notificationBoard = nil
         lastRefreshAt = nil
     }
 }
@@ -409,6 +469,8 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
     var monitoringsResult: Result<[KnownMonitor], Error> = .failure(TestError.unexpectedCall)
     var overviewResult: Result<MobileOverviewPayload, Error> = .success(.fallback(monitors: [], events: []))
     var detailResult: Result<MobileMonitoringDetailResponse, Error> = .failure(TestError.unexpectedCall)
+    var notificationBoardResult: Result<MobileNotificationBoardResponse, Error> = .failure(TestError.unexpectedCall)
+    var markAllNotificationReadResult: Result<Int, Error> = .success(0)
     var logoutCount = 0
 
     func login(email: String, password: String, deviceContext: DeviceContext) async throws -> MobileLoginData {
@@ -472,6 +534,9 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
     func scheduleMaintenance(_ payload: MaintenanceSchedulePayload) async throws -> MobileMaintenanceWindow { throw TestError.unexpectedCall }
     func setRecurringMaintenanceEnabled(id: String, enabled: Bool) async throws -> MobileMaintenanceWindow { throw TestError.unexpectedCall }
     func cancelOneOffMaintenance(monitoringID: String) async throws { throw TestError.unexpectedCall }
+    func notificationBoard(cursor: String?, eventType: String?, showRead: Bool) async throws -> MobileNotificationBoardResponse { try notificationBoardResult.get() }
+    func markNotificationRead(id: String) async throws {}
+    func markAllNotificationsRead() async throws -> Int { try markAllNotificationReadResult.get() }
 
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
         throw TestError.unexpectedCall

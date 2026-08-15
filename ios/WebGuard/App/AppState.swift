@@ -7,6 +7,10 @@ final class AppState: ObservableObject {
     @Published var monitors: [KnownMonitor] = []
     @Published var overview = MobileOverviewPayload.fallback(monitors: [], events: [])
     @Published var events: [PushEvent] = []
+    @Published private(set) var notificationBoard: [MobileNotificationBoardEntry] = []
+    @Published private(set) var notificationBoardMeta = MobileNotificationBoardMeta(nextCursor: nil, hasMore: false, unreadCount: 0)
+    @Published private(set) var notificationBoardFetchedAt: Date?
+    @Published private(set) var isNotificationBoardRefreshing = false
     @Published var notificationPreferences: [String: MonitoringNotificationPreference] = [:]
     @Published private(set) var monitoringDetails: [String: CachedMonitoringDetail] = [:]
     @Published private(set) var monitoringGroups: [MobileMonitoringGroup] = []
@@ -30,6 +34,7 @@ final class AppState: ObservableObject {
     private let serverURLProvider: () throws -> URL
     private var notificationObservers: [NSObjectProtocol] = []
     private static let monitoringFreshnessWindow: TimeInterval = 5 * 60
+    private static let notificationBoardFreshnessWindow: TimeInterval = 5 * 60
 
     convenience init() {
         self.init(
@@ -62,6 +67,11 @@ final class AppState: ObservableObject {
         events = cache.loadEvents()
         overview = cache.loadOverview() ?? .fallback(monitors: monitors, events: events)
         notificationPreferences = cache.loadNotificationPreferences()
+        if let cachedBoard = cache.loadNotificationBoard() {
+            notificationBoard = cachedBoard.entries
+            notificationBoardMeta = cachedBoard.meta
+            notificationBoardFetchedAt = cachedBoard.fetchedAt
+        }
         monitoringDetails = cache.loadMonitoringDetails()
         lastMonitoringRefreshAt = cache.loadLastMonitoringRefreshAt()
         authenticationState = session == nil ? .signedOut : .authenticated
@@ -204,6 +214,11 @@ final class AppState: ObservableObject {
             session = next
             events = cache.loadEvents()
             notificationPreferences = cache.loadNotificationPreferences()
+            if let cachedBoard = cache.loadNotificationBoard() {
+                notificationBoard = cachedBoard.entries
+                notificationBoardMeta = cachedBoard.meta
+                notificationBoardFetchedAt = cachedBoard.fetchedAt
+            }
             monitoringDetails = cache.loadMonitoringDetails()
             cache.saveMonitors(monitorings)
             let refreshedAt = Date()
@@ -218,6 +233,7 @@ final class AppState: ObservableObject {
             saveWidgetSnapshot()
             authenticationState = .authenticated
             monitoringLoadState = monitorings.isEmpty ? .empty : .loaded
+            await refreshNotificationBoard()
         } catch {
             authenticationState = .signedOut
             monitoringLoadState = .failed
@@ -326,6 +342,13 @@ final class AppState: ObservableObject {
         }
 
         return Date().timeIntervalSince(lastMonitoringRefreshAt) > Self.monitoringFreshnessWindow
+    }
+
+    var isNotificationBoardStale: Bool {
+        guard let notificationBoardFetchedAt else {
+            return !notificationBoard.isEmpty
+        }
+        return Date().timeIntervalSince(notificationBoardFetchedAt) > Self.notificationBoardFreshnessWindow
     }
 
     func refreshMonitoring(_ monitoringID: String) async -> KnownMonitor? {
@@ -541,6 +564,118 @@ final class AppState: ObservableObject {
         }
     }
 
+    func refreshNotificationBoard() async {
+        guard let client = apiClient, !isNotificationBoardRefreshing else {
+            return
+        }
+
+        isNotificationBoardRefreshing = true
+        defer { isNotificationBoardRefreshing = false }
+
+        do {
+            let response = try await client.notificationBoard(cursor: nil, eventType: nil, showRead: true)
+            applyNotificationBoard(response, replacing: true)
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch {
+            isOffline = true
+            show(error)
+        }
+    }
+
+    func loadMoreNotificationBoard() async {
+        guard let client = apiClient,
+              let cursor = notificationBoardMeta.nextCursor,
+              notificationBoardMeta.hasMore,
+              !isNotificationBoardRefreshing else {
+            return
+        }
+
+        isNotificationBoardRefreshing = true
+        defer { isNotificationBoardRefreshing = false }
+
+        do {
+            let response = try await client.notificationBoard(cursor: cursor, eventType: nil, showRead: true)
+            applyNotificationBoard(response, replacing: false)
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch {
+            isOffline = true
+            show(error)
+        }
+    }
+
+    func markNotificationRead(_ entry: MobileNotificationBoardEntry) async {
+        guard let client = apiClient, !entry.id.hasPrefix("local-") else {
+            return
+        }
+
+        let original = notificationBoard
+        notificationBoard = notificationBoard.map { item in
+            guard item.id == entry.id else { return item }
+            var updated = item
+            updated.read = true
+            return updated
+        }
+        notificationBoardMeta.unreadCount = max(0, notificationBoardMeta.unreadCount - (entry.read ? 0 : 1))
+        saveNotificationBoardCache()
+
+        do {
+            try await client.markNotificationRead(id: entry.id)
+            updateLastAPICallAt()
+            await refreshNotificationBoard()
+        } catch WebGuardAPIError.unauthorized {
+            notificationBoard = original
+            notificationBoardMeta.unreadCount = original.filter { !$0.read }.count
+            saveNotificationBoardCache()
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch {
+            notificationBoard = original
+            notificationBoardMeta.unreadCount = original.filter { !$0.read }.count
+            saveNotificationBoardCache()
+            show(error)
+        }
+    }
+
+    func markAllNotificationsRead() async {
+        guard let client = apiClient else {
+            return
+        }
+
+        let original = notificationBoard
+        notificationBoard = notificationBoard.map { item in
+            var updated = item
+            updated.read = true
+            return updated
+        }
+        notificationBoardMeta.unreadCount = 0
+        saveNotificationBoardCache()
+
+        do {
+            notificationBoardMeta.unreadCount = try await client.markAllNotificationsRead()
+            saveNotificationBoardCache()
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            notificationBoard = original
+            notificationBoardMeta.unreadCount = original.filter { !$0.read }.count
+            saveNotificationBoardCache()
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch {
+            notificationBoard = original
+            notificationBoardMeta.unreadCount = original.filter { !$0.read }.count
+            saveNotificationBoardCache()
+            show(error)
+        }
+    }
+
     func loadNotificationPreferences() async {
         guard let client = apiClient else {
             return
@@ -614,6 +749,9 @@ final class AppState: ObservableObject {
         session = nil
         monitors = []
         events = []
+        notificationBoard = []
+        notificationBoardMeta = MobileNotificationBoardMeta(nextCursor: nil, hasMore: false, unreadCount: 0)
+        notificationBoardFetchedAt = nil
         overview = .fallback(monitors: [], events: [])
         notificationPreferences = [:]
         monitoringDetails = [:]
@@ -643,10 +781,57 @@ final class AppState: ObservableObject {
     private func handlePushEvent(_ event: PushEvent) {
         cache.addEvent(event)
         events = cache.loadEvents()
+        if !notificationBoard.contains(where: { $0.id == event.notificationID }) {
+            notificationBoard.insert(localNotificationEntry(from: event), at: 0)
+            notificationBoardMeta.unreadCount += 1
+            saveNotificationBoardCache()
+        }
         monitors = cache.loadMonitors()
         overview = .fallback(monitors: monitors, events: events)
         monitoringLoadState = monitors.isEmpty ? .empty : .loaded
         saveWidgetSnapshot()
+        Task { await refreshNotificationBoard() }
+    }
+
+    private func applyNotificationBoard(_ response: MobileNotificationBoardResponse, replacing: Bool) {
+        let existingRemoteEntries = replacing ? [] : notificationBoard.filter { !$0.id.hasPrefix("local-") }
+        let remoteEntries = existingRemoteEntries + response.data
+        let uniqueRemote = Dictionary(grouping: remoteEntries, by: \.id)
+            .compactMap { $0.value.first }
+        let localEntries = events
+            .filter { event in !uniqueRemote.contains(where: { $0.id == event.notificationID }) }
+            .map(localNotificationEntry)
+        notificationBoard = (uniqueRemote + localEntries)
+            .sorted { $0.occurredAt > $1.occurredAt }
+        notificationBoardMeta = response.meta
+        notificationBoardFetchedAt = Date()
+        saveNotificationBoardCache()
+    }
+
+    private func localNotificationEntry(from event: PushEvent) -> MobileNotificationBoardEntry {
+        MobileNotificationBoardEntry(
+            id: "local-\(event.notificationID)",
+            eventType: event.eventType,
+            severity: event.severity,
+            message: event.eventType == "recovery" ? "Wiederhergestellt" : "Push-Benachrichtigung empfangen",
+            occurredAt: event.occurredAt,
+            read: false,
+            deliveryStatus: "unknown",
+            monitoring: MobileNotificationBoardMonitoring(
+                id: event.monitoringID,
+                name: event.monitoringName,
+                target: event.monitoringTarget
+            ),
+            cursor: "local-\(event.notificationID)"
+        )
+    }
+
+    private func saveNotificationBoardCache() {
+        cache.saveNotificationBoard(CachedNotificationBoard(
+            entries: notificationBoard,
+            meta: notificationBoardMeta,
+            fetchedAt: notificationBoardFetchedAt ?? Date()
+        ))
     }
 
     private func persist(_ next: StoredSession) {
