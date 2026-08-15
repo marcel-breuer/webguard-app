@@ -7,6 +7,7 @@ struct MonitoringListView: View {
     @State private var selectedMonitor: KnownMonitor?
     @State private var showingCreate = false
     @State private var showingCollaboration = false
+    @State private var showingMaintenance = false
 
     private var filteredMonitors: [KnownMonitor] {
         let base = filter == .systems ? appState.monitors.filter { $0.status != nil } : appState.monitors
@@ -62,6 +63,9 @@ struct MonitoringListView: View {
                         }
                         .buttonStyle(.bordered)
                         .accessibilityLabel("Teams und Monitoring-Gruppen")
+                        Button { showingMaintenance = true } label: { Image(systemName: "wrench.and.screwdriver") }
+                            .buttonStyle(.bordered)
+                            .accessibilityLabel("Wartung verwalten")
                     }
 
                     Picker("Filter", selection: $filter) {
@@ -131,6 +135,7 @@ struct MonitoringListView: View {
             .sheet(isPresented: $showingCollaboration) {
                 CollaborationWorkspaceView()
             }
+            .sheet(isPresented: $showingMaintenance) { MaintenanceWorkspaceView() }
         }
     }
 
@@ -921,6 +926,75 @@ private struct IncidentTimelineRow: View {
                 .foregroundStyle(Brand.mutedText)
         }
         .padding(.vertical, 10)
+    }
+}
+
+private struct MaintenanceWorkspaceView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var showingScheduler = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Einmalige Wartung") {
+                    ForEach(appState.oneOffMaintenance) { window in
+                        MaintenanceRow(window: window) { Task { await appState.cancelOneOffMaintenance(window) } }
+                    }
+                }
+                Section("Wiederkehrende Wartung") {
+                    ForEach(appState.recurringMaintenance) { window in
+                        VStack(alignment: .leading, spacing: 6) {
+                            MaintenanceRow(window: window, cancel: nil)
+                            if window.canManage {
+                                Toggle("Aktiv", isOn: Binding(
+                                    get: { window.enabled },
+                                    set: { enabled in
+                                        Task { await appState.setRecurringMaintenanceEnabled(window, enabled: enabled) }
+                                    }
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Wartung")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fertig") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button { showingScheduler = true } label: { Image(systemName: "plus") }.disabled(appState.maintenanceCapabilities?.canSchedule != true) } }
+            .task { await appState.refreshMaintenance() }
+            .refreshable { await appState.refreshMaintenance() }
+            .sheet(isPresented: $showingScheduler) { MaintenanceSchedulerView() }
+        }
+    }
+}
+
+private struct MaintenanceRow: View {
+    let window: MobileMaintenanceWindow
+    let cancel: (() -> Void)?
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(window.target.name ?? window.target.id).font(.headline)
+            Text("\(window.state.capitalized) · \(window.schedule.nextOccurrence ?? window.schedule.startsAt ?? .distantPast, format: .dateTime.day().month().hour().minute())").font(.footnote).foregroundStyle(Brand.mutedText)
+            if let recurrence = window.schedule.recurrence { Text("\(recurrence) · \(window.schedule.timezone)").font(.footnote).foregroundStyle(Brand.mutedText) }
+            if let cancel, window.canManage { Button("Wartung abbrechen", role: .destructive, action: cancel).font(.footnote) }
+        }
+    }
+}
+
+private struct MaintenanceSchedulerView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var mode = "one_off"; @State private var monitoringID = ""; @State private var startsAt = Date().addingTimeInterval(3600); @State private var endsAt = Date().addingTimeInterval(7200); @State private var recurrence = "weekly"
+    var body: some View {
+        NavigationStack { Form {
+            Picker("Art", selection: $mode) { Text("Einmalig").tag("one_off"); Text("Wiederkehrend").tag("recurring") }
+            Picker("Monitoring", selection: $monitoringID) { ForEach(appState.maintenanceCapabilities?.manageableMonitorings ?? []) { Text($0.name).tag($0.id) } }
+            DatePicker("Beginn", selection: $startsAt)
+            if mode == "one_off" { DatePicker("Ende", selection: $endsAt) } else { Picker("Wiederholung", selection: $recurrence) { Text("Wöchentlich").tag("weekly"); Text("Monatlich").tag("monthly") }; Text("Die nächste Ausführung wird nach dem Speichern serverseitig mit Zeitzone und DST berechnet.").font(.footnote).foregroundStyle(Brand.mutedText) }
+        }.navigationTitle("Wartung planen").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("Planen") { Task { await save() } }.disabled(monitoringID.isEmpty) } } }.task { if monitoringID.isEmpty { monitoringID = appState.maintenanceCapabilities?.manageableMonitorings.first?.id ?? "" } }
+    }
+    private func save() async {
+        let payload = MaintenanceSchedulePayload(mode: mode, scope: "monitoring", monitoringID: monitoringID, monitoringGroupID: nil, maintenanceFrom: mode == "one_off" ? startsAt : nil, maintenanceUntil: mode == "one_off" ? endsAt : nil, recurringStartsAt: mode == "recurring" ? startsAt : nil, recurringDurationMinutes: mode == "recurring" ? 60 : nil, recurrence: mode == "recurring" ? recurrence : nil, recurringTimezone: mode == "recurring" ? TimeZone.current.identifier : nil, idempotencyKey: UUID().uuidString)
+        if await appState.scheduleMaintenance(payload) { dismiss() }
     }
 }
 

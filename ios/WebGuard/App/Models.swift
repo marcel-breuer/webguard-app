@@ -156,6 +156,65 @@ struct TeamSummary: Decodable, Identifiable {
     var description: String?
 }
 
+struct MobileMaintenanceListResponse: Decodable { var data: [MobileMaintenanceWindow] }
+struct MobileMaintenanceResponse: Decodable { var data: MobileMaintenanceWindow; var idempotent: Bool? }
+
+struct MobileMaintenanceWindow: Codable, Identifiable, Equatable {
+    var id: String
+    var kind: String
+    var state: String
+    var enabled: Bool
+    var target: MobileMaintenanceTarget
+    var schedule: MobileMaintenanceSchedule
+    var canManage: Bool
+
+    enum CodingKeys: String, CodingKey { case id, kind, state, enabled, target, schedule; case canManage = "can_manage" }
+}
+
+struct MobileMaintenanceTarget: Codable, Equatable {
+    var type: String
+    var id: String
+    var name: String?
+    var manageableMonitoringIDs: [String]
+    enum CodingKeys: String, CodingKey { case type, id, name; case manageableMonitoringIDs = "manageable_monitoring_ids" }
+}
+
+struct MobileMaintenanceSchedule: Codable, Equatable {
+    var startsAt: Date?
+    var endsAt: Date?
+    var timezone: String
+    var recurrence: String?
+    var durationMinutes: Int?
+    var repeatUntil: Date?
+    var nextOccurrence: Date?
+    enum CodingKeys: String, CodingKey {
+        case timezone, recurrence
+        case startsAt = "starts_at"; case endsAt = "ends_at"; case durationMinutes = "duration_minutes"
+        case repeatUntil = "repeat_until"; case nextOccurrence = "next_occurrence"
+    }
+}
+
+struct MobileMaintenanceCapabilitiesResponse: Decodable { var data: MobileMaintenanceCapabilities }
+struct MobileMaintenanceCapabilities: Decodable, Equatable {
+    var canSchedule: Bool
+    var manageableMonitorings: [MobileMaintenanceMonitoring]
+    var monitoringGroups: [MobileMaintenanceGroup]
+    enum CodingKeys: String, CodingKey { case canSchedule = "can_schedule"; case manageableMonitorings = "manageable_monitorings"; case monitoringGroups = "monitoring_groups" }
+}
+struct MobileMaintenanceMonitoring: Decodable, Identifiable, Equatable { var id: String; var name: String; var ownership: String }
+struct MobileMaintenanceGroup: Decodable, Identifiable, Equatable { var id: String; var name: String; var monitoringsCount: Int; enum CodingKeys: String, CodingKey { case id, name; case monitoringsCount = "monitorings_count" } }
+
+struct MaintenanceSchedulePayload: Encodable {
+    var mode: String; var scope: String; var monitoringID: String?; var monitoringGroupID: String?
+    var maintenanceFrom: Date?; var maintenanceUntil: Date?; var recurringStartsAt: Date?; var recurringDurationMinutes: Int?; var recurrence: String?; var recurringTimezone: String?; var idempotencyKey: String
+    enum CodingKeys: String, CodingKey {
+        case mode, scope, recurrence
+        case monitoringID = "monitoring_id"; case monitoringGroupID = "monitoring_group_id"
+        case maintenanceFrom = "maintenance_from"; case maintenanceUntil = "maintenance_until"
+        case recurringStartsAt = "recurring_starts_at"; case recurringDurationMinutes = "recurring_duration_minutes"; case recurringTimezone = "recurring_timezone"; case idempotencyKey = "idempotency_key"
+    }
+}
+
 struct MonitoringManagementItem: Decodable, Equatable {
     var id: String
     var name: String
