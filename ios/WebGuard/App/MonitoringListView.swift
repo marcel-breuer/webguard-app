@@ -335,7 +335,9 @@ private struct MaintenanceWindowRow: View {
 struct MonitoringDetailView: View {
     @EnvironmentObject private var appState: AppState
     @State private var monitor: KnownMonitor
+    @State private var detail: MobileMonitoringDetailResponse?
     @State private var isRefreshing = false
+    @State private var isLoadingMoreIncidents = false
 
     init(monitor: KnownMonitor) {
         _monitor = State(initialValue: monitor)
@@ -347,28 +349,62 @@ struct MonitoringDetailView: View {
             .sorted { $0.occurredAt > $1.occurredAt }
     }
 
+    private var displayedName: String {
+        detail?.data.summary.name ?? monitor.name
+    }
+
+    private var displayedTarget: String {
+        detail?.data.summary.target ?? monitor.target
+    }
+
+    private var currentTone: MonitorTone {
+        if let status = detail?.data.currentCheck.status ?? detail?.data.summary.lifecycleStatus {
+            return MonitorTone(rawValue: status) ?? monitor.tone
+        }
+
+        return monitor.tone
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text(monitor.name)
+                        Text(displayedName)
                             .font(.system(size: 28, weight: .black, design: .rounded))
                             .foregroundStyle(Brand.text)
 
                         Spacer()
 
-                        StatusPill(tone: monitor.tone, label: monitor.status ?? "Unknown")
+                        StatusPill(
+                            tone: currentTone,
+                            label: detail?.data.currentCheck.statusLabel
+                                ?? detail?.data.currentCheck.status
+                                ?? monitor.status
+                                ?? "Unknown"
+                        )
                     }
 
-                    Text(monitor.target.isEmpty ? monitor.id : monitor.target)
+                    Text(displayedTarget.isEmpty ? monitor.id : displayedTarget)
                         .font(.system(size: 16, design: .rounded))
                         .foregroundStyle(Brand.mutedText)
                         .textSelection(.enabled)
                 }
                 .webGuardCard()
 
-                if let maintenanceState = monitor.maintenanceWindowState {
+                if let detail {
+                    DetailFreshnessBanner(
+                        generatedAt: detail.meta.generatedAt,
+                        isOffline: appState.isOffline,
+                        hasStaleSections: detail.meta.sections.values.contains { $0.state == .stale }
+                    )
+                } else if appState.isOffline {
+                    DetailUnavailableCard(message: "Keine Verbindung und keine zwischengespeicherten Diagnosedaten für dieses Monitoring.")
+                }
+
+                if let detail {
+                    serverDetailSections(detail)
+                } else if let maintenanceState = monitor.maintenanceWindowState {
                     VStack(alignment: .leading, spacing: 10) {
                         Label(
                             "Wartungsfenster \(maintenanceState.title.lowercased())",
@@ -391,7 +427,8 @@ struct MonitoringDetailView: View {
                     .webGuardCard()
                 }
 
-                VStack(alignment: .leading, spacing: 14) {
+                if detail == nil {
+                    VStack(alignment: .leading, spacing: 14) {
                     Text("Status")
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundStyle(Brand.text)
@@ -419,10 +456,12 @@ struct MonitoringDetailView: View {
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(isRefreshing)
+                    }
+                    .webGuardCard()
                 }
-                .webGuardCard()
 
-                VStack(alignment: .leading, spacing: 0) {
+                if detail == nil {
+                    VStack(alignment: .leading, spacing: 0) {
                     Text("Letzte Ereignisse")
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundStyle(Brand.text)
@@ -440,8 +479,9 @@ struct MonitoringDetailView: View {
                             }
                         }
                     }
+                    }
+                    .webGuardCard()
                 }
-                .webGuardCard()
             }
             .padding(20)
             .webGuardContentWidth(900)
@@ -450,6 +490,10 @@ struct MonitoringDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier(WebGuardAccessibilityID.monitoringDetail(monitor.id))
         .background(Brand.background)
+        .task {
+            detail = appState.monitoringDetail(for: monitor.id)?.payload
+            await refreshDetail()
+        }
     }
 
     private func maintenancePeriod(from: Date, until: Date?) -> String {
@@ -460,6 +504,346 @@ struct MonitoringDetailView: View {
         }
 
         return "\(start) – \(until.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    @ViewBuilder
+    private func serverDetailSections(_ detail: MobileMonitoringDetailResponse) -> some View {
+        DetailSectionCard(title: "Aktueller Check", section: detail.meta.sections["current_check"]) {
+            DetailField(
+                label: "Letzte Prüfung",
+                value: detail.data.currentCheck.checkedAt?.formatted(date: .abbreviated, time: .shortened) ?? "Nicht verfügbar"
+            )
+            if let responseTime = detail.data.currentCheck.responseTime {
+                DetailField(label: "Antwortzeit", value: "\(Int(responseTime)) ms")
+            }
+            Button {
+                Task { await refreshDetail() }
+            } label: {
+                Label(isRefreshing ? "Wird aktualisiert" : "Diagnose aktualisieren", systemImage: "arrow.clockwise")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .disabled(isRefreshing)
+        }
+
+        DetailSectionCard(title: "Verfügbarkeit (30 Tage)", section: detail.meta.sections["availability"]) {
+            if detail.data.availability.hasData {
+                HStack(spacing: 10) {
+                    AvailabilityMetric(label: "Verfügbar", value: detail.data.availability.uptime.percentage, color: Brand.success)
+                    AvailabilityMetric(label: "Ausfall", value: detail.data.availability.downtime.percentage, color: Brand.danger)
+                    AvailabilityMetric(label: "Unbekannt", value: detail.data.availability.unknown.percentage, color: Brand.warning)
+                }
+                DetailField(label: "Vorfälle", value: "\(detail.data.availability.downtime.incidentsCount ?? detail.data.incidents.count)")
+            } else {
+                DetailUnavailableCard(message: "Für den gewählten Zeitraum liegen noch keine Verfügbarkeitsdaten vor.")
+            }
+        }
+
+        DetailSectionCard(title: "Antwortzeiten", section: detail.meta.sections["response_times"]) {
+            ResponseTimeChart(points: detail.data.responseTimes.data)
+            if let average = detail.data.responseTimes.aggregated.avg {
+                DetailField(label: "Durchschnitt", value: "\(Int(average)) ms")
+            }
+        }
+
+        DetailSectionCard(title: "Vorfälle", section: detail.meta.sections["incidents"]) {
+            if detail.data.incidents.isEmpty {
+                Text("Für den gewählten Zeitraum liegen keine Vorfälle vor.")
+                    .font(.system(size: 15, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+            } else {
+                ForEach(detail.data.incidents) { incident in
+                    ServerIncidentRow(incident: incident)
+                    if incident.id != detail.data.incidents.last?.id {
+                        Divider().background(Brand.border)
+                    }
+                }
+            }
+
+            if detail.meta.incidents.hasMore {
+                Button(isLoadingMoreIncidents ? "Weitere Vorfälle werden geladen" : "Weitere Vorfälle laden") {
+                    Task { await loadMoreIncidents() }
+                }
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(Brand.accent)
+                .disabled(isLoadingMoreIncidents)
+                .padding(.top, 8)
+            }
+        }
+
+        DetailSectionCard(title: "Wartung", section: detail.meta.sections["maintenance"]) {
+            if detail.data.maintenance.active {
+                Label("Dieses Monitoring befindet sich in einem aktiven Wartungsfenster.", systemImage: "wrench.and.screwdriver.fill")
+                    .foregroundStyle(Brand.warning)
+            } else if detail.data.maintenance.hasRecurringWindow {
+                Label("Ein wiederkehrendes Wartungsfenster ist eingerichtet.", systemImage: "calendar.badge.clock")
+                    .foregroundStyle(Brand.mutedText)
+            } else {
+                Text("Kein aktives Wartungsfenster.")
+                    .foregroundStyle(Brand.mutedText)
+            }
+            if let startsAt = detail.data.maintenance.startsAt {
+                DetailField(label: "Beginn", value: startsAt.formatted(date: .abbreviated, time: .shortened))
+            }
+            if let endsAt = detail.data.maintenance.endsAt {
+                DetailField(label: "Ende", value: endsAt.formatted(date: .abbreviated, time: .shortened))
+            }
+        }
+
+        DetailSectionCard(title: "Zertifikat und Domain", section: detail.meta.sections["ssl"]) {
+            CertificateAndDomainDetail(ssl: detail.data.ssl, domain: detail.data.domain, domainSection: detail.meta.sections["domain"])
+        }
+
+        DetailSectionCard(title: "Uptime-Kalender", section: detail.meta.sections["uptime_calendar"]) {
+            UptimeCalendarPreview(months: detail.data.uptimeCalendar)
+        }
+    }
+
+    private func refreshDetail() async {
+        isRefreshing = true
+        if let refreshed = await appState.refreshMonitoringDetail(monitor.id) {
+            detail = refreshed
+            if let status = refreshed.data.currentCheck.status ?? refreshed.data.summary.lifecycleStatus {
+                monitor.status = status
+            }
+        }
+        isRefreshing = false
+    }
+
+    private func loadMoreIncidents() async {
+        guard let offset = detail?.meta.incidents.nextOffset else {
+            return
+        }
+
+        isLoadingMoreIncidents = true
+        defer { isLoadingMoreIncidents = false }
+        guard let next = await appState.refreshMonitoringDetail(monitor.id, incidentOffset: offset),
+              var existing = detail else {
+            return
+        }
+
+        existing.data.incidents += next.data.incidents.filter { candidate in
+            !existing.data.incidents.contains(where: { $0.id == candidate.id })
+        }
+        existing.meta = next.meta
+        detail = existing
+    }
+}
+
+private struct DetailFreshnessBanner: View {
+    let generatedAt: Date
+    let isOffline: Bool
+    let hasStaleSections: Bool
+
+    var body: some View {
+        let title = isOffline ? "Offline – gespeicherte Diagnosedaten" : hasStaleSections ? "Teilweise veraltete Diagnosedaten" : "Diagnosedaten aktuell"
+        let color = isOffline ? Brand.danger : hasStaleSections ? Brand.warning : Brand.success
+
+        Label(title, systemImage: isOffline ? "wifi.slash" : hasStaleSections ? "clock.badge.exclamationmark" : "checkmark.circle.fill")
+            .font(.system(size: 14, weight: .bold, design: .rounded))
+            .foregroundStyle(color)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("\(title). Stand \(generatedAt.formatted(date: .abbreviated, time: .shortened))")
+            .webGuardCard()
+    }
+}
+
+private struct DetailSectionCard<Content: View>: View {
+    let title: String
+    let section: MobileMonitoringDetailSection?
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .foregroundStyle(Brand.text)
+                Spacer()
+                SectionStateBadge(section: section)
+            }
+            content
+        }
+        .webGuardCard()
+    }
+}
+
+private struct SectionStateBadge: View {
+    let section: MobileMonitoringDetailSection?
+
+    var body: some View {
+        let state = section?.state ?? .unavailable
+        Text(label(for: state))
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundStyle(color(for: state))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(color(for: state).opacity(0.12))
+            .clipShape(Capsule())
+            .accessibilityLabel("Datenstatus: \(label(for: state))")
+    }
+
+    private func label(for state: MobileMonitoringDetailSectionState) -> String {
+        switch state {
+        case .current: return "Aktuell"
+        case .stale: return "Veraltet"
+        case .empty: return "Keine Daten"
+        case .unavailable: return "Nicht verfügbar"
+        }
+    }
+
+    private func color(for state: MobileMonitoringDetailSectionState) -> Color {
+        switch state {
+        case .current: return Brand.success
+        case .stale: return Brand.warning
+        case .empty, .unavailable: return Brand.mutedText
+        }
+    }
+}
+
+private struct DetailUnavailableCard: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .font(.system(size: 15, design: .rounded))
+            .foregroundStyle(Brand.mutedText)
+    }
+}
+
+private struct AvailabilityMetric: View {
+    let label: String
+    let value: Double?
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(Brand.mutedText)
+            Text(value.map { String(format: "%.2f%%", $0) } ?? "–")
+                .font(.system(size: 18, weight: .black, design: .rounded))
+                .foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ResponseTimeChart: View {
+    let points: [MobileMonitoringResponseTimePoint]
+
+    var body: some View {
+        if points.isEmpty {
+            DetailUnavailableCard(message: "Für den gewählten Zeitraum liegen keine Antwortzeitmessungen vor.")
+        } else {
+            let displayed = Array(points.suffix(12))
+            let maximum = max(displayed.compactMap(\.avg).max() ?? 1, 1)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .bottom, spacing: 4) {
+                    ForEach(displayed) { point in
+                        VStack(spacing: 3) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Brand.accent)
+                                .frame(height: max(8, CGFloat((point.avg ?? 0) / maximum) * 88))
+                            Text(point.date.formatted(.dateTime.hour()))
+                                .font(.system(size: 9, design: .rounded))
+                                .foregroundStyle(Brand.mutedText)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .bottom)
+                        .accessibilityLabel("\(point.date.formatted(date: .abbreviated, time: .shortened)): \(Int(point.avg ?? 0)) Millisekunden")
+                    }
+                }
+                .frame(height: 118, alignment: .bottom)
+                Text("Letzte \(displayed.count) Messpunkte")
+                    .font(.system(size: 13, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+            }
+        }
+    }
+}
+
+private struct ServerIncidentRow: View {
+    let incident: MobileMonitoringIncident
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: incident.upAt == nil ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                .foregroundStyle(incident.upAt == nil ? Brand.danger : Brand.success)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(incident.upAt == nil ? "Aktiver Vorfall" : "Wiederhergestellt")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(Brand.text)
+                Text("Beginn \(incident.downAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.system(size: 14, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+                if let upAt = incident.upAt {
+                    Text("Ende \(upAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.system(size: 14, design: .rounded))
+                        .foregroundStyle(Brand.mutedText)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+private struct CertificateAndDomainDetail: View {
+    let ssl: MobileMonitoringSsl?
+    let domain: MobileMonitoringDomain?
+    let domainSection: MobileMonitoringDetailSection?
+
+    var body: some View {
+        if ssl == nil && domain == nil {
+            DetailUnavailableCard(message: "Für dieses Monitoring sind keine Zertifikats- oder Domaindaten verfügbar.")
+        } else {
+            if let ssl {
+                DetailField(label: "Zertifikat", value: ssl.valid == true ? "Gültig" : ssl.valid == false ? "Ungültig" : "Unbekannt")
+                if let expiration = ssl.expiration {
+                    DetailField(label: "Zertifikat läuft ab", value: expiration.formatted(date: .abbreviated, time: .shortened))
+                }
+            }
+            if let domain {
+                DetailField(label: "Domain", value: domain.valid == true ? "Gültig" : domain.valid == false ? "Ungültig" : "Unbekannt")
+                if let expiresAt = domain.expiresAt {
+                    DetailField(label: "Domain läuft ab", value: expiresAt.formatted(date: .abbreviated, time: .shortened))
+                }
+            } else if domainSection?.state == .unavailable {
+                Text("Domaindaten nicht verfügbar.")
+                    .font(.system(size: 14, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+            }
+        }
+    }
+}
+
+private struct UptimeCalendarPreview: View {
+    let months: [String: MobileMonitoringCalendarMonth]
+
+    private var days: [MobileMonitoringCalendarDay] {
+        months.values.flatMap(\.days).suffix(21).reversed()
+    }
+
+    var body: some View {
+        if days.isEmpty {
+            DetailUnavailableCard(message: "Noch keine Kalendereinträge verfügbar.")
+        } else {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+                ForEach(days) { day in
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(color(for: day.uptimePercentage))
+                        .frame(height: 24)
+                        .accessibilityLabel("\(day.date): \(day.uptimePercentage.map { String(format: "%.2f Prozent verfügbar", $0) } ?? "keine Daten")")
+                }
+            }
+        }
+    }
+
+    private func color(for uptime: Double?) -> Color {
+        guard let uptime else { return Brand.border }
+        if uptime >= 99.9 { return Brand.success }
+        if uptime >= 95 { return Brand.warning }
+        return Brand.danger
     }
 }
 

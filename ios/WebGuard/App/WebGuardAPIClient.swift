@@ -32,6 +32,7 @@ protocol WebGuardAPIClientProtocol {
     func updateMobilePushDevice(deviceID: String, enabled: Bool) async throws -> MobilePushDevice
     func revokeMobilePushDevice(deviceID: String) async throws
     func monitoringStatus(monitorID: String) async throws -> MonitoringStatusPayload
+    func monitoringDetail(monitorID: String, days: Int, incidentOffset: Int) async throws -> MobileMonitoringDetailResponse
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference
     func updateMonitoringNotificationPreference(
         monitoringID: String,
@@ -138,6 +139,16 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
 
     func monitoringStatus(monitorID: String) async throws -> MonitoringStatusPayload {
         try await request("/monitorings/\(monitorID)/status", method: "GET")
+    }
+
+    func monitoringDetail(monitorID: String, days: Int = 30, incidentOffset: Int = 0) async throws -> MobileMonitoringDetailResponse {
+        let normalizedDays = min(max(days, 1), 90)
+        let normalizedOffset = max(incidentOffset, 0)
+
+        return try await request(
+            "/mobile/monitorings/\(monitorID)?days=\(normalizedDays)&incident_limit=20&incident_offset=\(normalizedOffset)",
+            method: "GET"
+        )
     }
 
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {

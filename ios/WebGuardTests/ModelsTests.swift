@@ -227,4 +227,66 @@ final class ModelsTests: XCTestCase {
         cache.activate(for: "user-b")
         XCTAssertEqual(cache.loadMonitors(), [secondMonitor])
     }
+
+    func testMobileMonitoringDetailFixtureDecodesSectionFreshnessAndDiagnostics() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let json = """
+        {
+          "data": {
+            "summary": {"id":"monitor-1","name":"API","target":"https://example.test","type":"http","lifecycle_status":"active","ownership":{"type":"private","can_manage":true},"performance":null,"open_incident":false},
+            "current_check": {"status":"up","status_label":"Up","checked_at":"2026-08-15T08:00:00Z","response_time":120},
+            "availability": {"has_data":true,"tracking_started_at":"2026-08-01T08:00:00Z","uptime":{"minutes":100,"percentage":99.5,"total":100},"downtime":{"minutes":1,"percentage":0.5,"total":1,"incidents_count":1},"unknown":{"minutes":0,"percentage":0,"total":0}},
+            "response_times": {"data":[{"date":"2026-08-15T08:00:00Z","avg":120,"min":110,"max":140}],"aggregated":{"avg":120,"min":110,"max":140}},
+            "incidents": [{"down_at":"2026-08-14T08:00:00Z","up_at":null}],
+            "heatmap": [{"date":"2026-08-15T08:00:00Z","uptime":99.5,"downtime":0.5,"unknown":0}],
+            "maintenance": {"active":false,"starts_at":null,"ends_at":null,"has_recurring_window":false},
+            "ssl": {"valid":true,"expiration":"2026-12-01T08:00:00Z","issuer":"Example CA","issue_date":"2026-01-01T08:00:00Z"},
+            "domain": null,
+            "uptime_calendar": {"2026-08":{"days":[{"date":"2026-08-15","uptime_percentage":99.5}],"monthly_average_uptime":99.5}},
+            "capabilities": {"can_manage":true}
+          },
+          "meta": {
+            "generated_at":"2026-08-15T08:00:00Z",
+            "range":{"days":30,"from":"2026-07-16T00:00:00Z","to":"2026-08-15T08:00:00Z"},
+            "incidents":{"limit":20,"offset":0,"has_more":false,"next_offset":null},
+            "sections":{"current_check":{"state":"current","generated_at":"2026-08-15T08:00:00Z"},"ssl":{"state":"current","generated_at":"2026-08-15T08:00:00Z"},"domain":{"state":"unavailable","generated_at":"2026-08-15T08:00:00Z"}}
+          }
+        }
+        """.data(using: .utf8)!
+
+        let detail = try decoder.decode(MobileMonitoringDetailResponse.self, from: json)
+
+        XCTAssertEqual(detail.data.summary.name, "API")
+        XCTAssertEqual(detail.data.availability.uptime.percentage, 99.5)
+        XCTAssertEqual(detail.data.responseTimes.data.first?.avg, 120)
+        XCTAssertNil(detail.data.incidents.first?.upAt)
+        XCTAssertEqual(detail.meta.sections["domain"]?.state, .unavailable)
+    }
+
+    func testLocalCachePersistsBoundedMonitoringDetails() throws {
+        let suiteName = "webguard.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cache = LocalCache(defaults: defaults)
+        cache.activate(for: "user-1")
+
+        let detail = try monitoringDetailFixture()
+        cache.saveMonitoringDetails(["monitor-1": CachedMonitoringDetail(payload: detail, fetchedAt: Date())])
+
+        XCTAssertEqual(cache.loadMonitoringDetails()["monitor-1"]?.payload, detail)
+        cache.clear()
+        XCTAssertTrue(cache.loadMonitoringDetails().isEmpty)
+    }
+
+    private func monitoringDetailFixture() throws -> MobileMonitoringDetailResponse {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(
+            MobileMonitoringDetailResponse.self,
+            from: """
+            {"data":{"summary":{"id":"monitor-1","name":"API","target":"https://example.test"},"current_check":{},"availability":{"has_data":false,"uptime":{"minutes":0,"total":0},"downtime":{"minutes":0,"total":0},"unknown":{"minutes":0,"total":0}},"response_times":{"data":[],"aggregated":{}},"incidents":[],"heatmap":[],"maintenance":{"active":false,"has_recurring_window":false},"ssl":null,"domain":null,"uptime_calendar":{},"capabilities":{"can_manage":false}},"meta":{"generated_at":"2026-08-15T08:00:00Z","range":{"days":30,"from":"2026-07-16T00:00:00Z","to":"2026-08-15T08:00:00Z"},"incidents":{"limit":20,"offset":0,"has_more":false,"next_offset":null},"sections":{}}}
+            """.data(using: .utf8)!
+        )
+    }
 }

@@ -82,6 +82,296 @@ struct MonitoringStatusPayload: Decodable {
     }
 }
 
+struct MobileMonitoringDetailResponse: Codable, Equatable {
+    var data: MobileMonitoringDetailPayload
+    var meta: MobileMonitoringDetailMeta
+}
+
+struct MobileMonitoringDetailPayload: Codable, Equatable {
+    var summary: MobileMonitoringDetailSummary
+    var currentCheck: MobileMonitoringCurrentCheck
+    var availability: MobileMonitoringAvailability
+    var responseTimes: MobileMonitoringResponseTimes
+    var incidents: [MobileMonitoringIncident]
+    var heatmap: [MobileMonitoringHeatmapPoint]
+    var maintenance: MobileMonitoringMaintenance
+    var ssl: MobileMonitoringSsl?
+    var domain: MobileMonitoringDomain?
+    var uptimeCalendar: [String: MobileMonitoringCalendarMonth]
+    var capabilities: MobileMonitoringCapabilities
+
+    enum CodingKeys: String, CodingKey {
+        case summary
+        case currentCheck = "current_check"
+        case availability
+        case responseTimes = "response_times"
+        case incidents
+        case heatmap
+        case maintenance
+        case ssl
+        case domain
+        case uptimeCalendar = "uptime_calendar"
+        case capabilities
+    }
+}
+
+struct MobileMonitoringDetailSummary: Codable, Equatable {
+    var id: String
+    var name: String
+    var target: String
+    var type: String?
+    var lifecycleStatus: String?
+    var ownership: MobileMonitoringOwnership?
+    var performance: MobileMonitoringPerformance?
+    var openIncident: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case target
+        case type
+        case lifecycleStatus = "lifecycle_status"
+        case ownership
+        case performance
+        case openIncident = "open_incident"
+    }
+}
+
+struct MobileMonitoringOwnership: Codable, Equatable {
+    var type: String?
+    var canManage: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case canManage = "can_manage"
+    }
+}
+
+struct MobileMonitoringPerformance: Codable, Equatable {
+    var status: String?
+    var consecutiveBreaches: Int?
+    var degradedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case consecutiveBreaches = "consecutive_breaches"
+        case degradedAt = "degraded_at"
+    }
+}
+
+struct MobileMonitoringCurrentCheck: Codable, Equatable {
+    var status: String?
+    var statusLabel: String?
+    var checkedAt: Date?
+    var responseTime: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case statusLabel = "status_label"
+        case checkedAt = "checked_at"
+        case responseTime = "response_time"
+    }
+}
+
+struct MobileMonitoringAvailability: Codable, Equatable {
+    var hasData: Bool
+    var trackingStartedAt: Date?
+    var uptime: MobileMonitoringAvailabilitySegment
+    var downtime: MobileMonitoringAvailabilitySegment
+    var unknown: MobileMonitoringAvailabilitySegment
+
+    enum CodingKeys: String, CodingKey {
+        case hasData = "has_data"
+        case trackingStartedAt = "tracking_started_at"
+        case uptime
+        case downtime
+        case unknown
+    }
+}
+
+struct MobileMonitoringAvailabilitySegment: Codable, Equatable {
+    var minutes: Int
+    var percentage: Double?
+    var total: Int
+    var incidentsCount: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case minutes
+        case percentage
+        case total
+        case incidentsCount = "incidents_count"
+    }
+}
+
+struct MobileMonitoringResponseTimes: Codable, Equatable {
+    var data: [MobileMonitoringResponseTimePoint]
+    var aggregated: MobileMonitoringResponseTimeAggregate
+}
+
+struct MobileMonitoringResponseTimePoint: Codable, Identifiable, Equatable {
+    var date: Date
+    var avg: Double?
+    var min: Double?
+    var max: Double?
+
+    var id: Date { date }
+}
+
+struct MobileMonitoringResponseTimeAggregate: Codable, Equatable {
+    var avg: Double?
+    var min: Double?
+    var max: Double?
+}
+
+struct MobileMonitoringIncident: Codable, Identifiable, Equatable {
+    var downAt: Date
+    var upAt: Date?
+
+    var id: Date { downAt }
+
+    enum CodingKeys: String, CodingKey {
+        case downAt = "down_at"
+        case upAt = "up_at"
+    }
+}
+
+struct MobileMonitoringHeatmapPoint: Codable, Identifiable, Equatable {
+    var date: Date
+    var uptime: Double
+    var downtime: Double
+    var unknown: Double
+
+    var id: Date { date }
+}
+
+struct MobileMonitoringMaintenance: Codable, Equatable {
+    var active: Bool
+    var startsAt: Date?
+    var endsAt: Date?
+    var hasRecurringWindow: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case active
+        case startsAt = "starts_at"
+        case endsAt = "ends_at"
+        case hasRecurringWindow = "has_recurring_window"
+    }
+}
+
+struct MobileMonitoringSsl: Codable, Equatable {
+    var valid: Bool?
+    var expiration: Date?
+    var issuer: String?
+    var issueDate: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case valid
+        case expiration
+        case issuer
+        case issueDate = "issue_date"
+    }
+}
+
+struct MobileMonitoringDomain: Codable, Equatable {
+    var valid: Bool?
+    var expiresAt: Date?
+    var registrar: String?
+    var checkedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case valid
+        case expiresAt = "expires_at"
+        case registrar
+        case checkedAt = "checked_at"
+    }
+}
+
+struct MobileMonitoringCalendarMonth: Codable, Equatable {
+    var days: [MobileMonitoringCalendarDay]
+    var monthlyAverageUptime: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case days
+        case monthlyAverageUptime = "monthly_average_uptime"
+    }
+}
+
+struct MobileMonitoringCalendarDay: Codable, Identifiable, Equatable {
+    var date: String
+    var uptimePercentage: Double?
+
+    var id: String { date }
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case uptimePercentage = "uptime_percentage"
+    }
+}
+
+struct MobileMonitoringCapabilities: Codable, Equatable {
+    var canManage: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case canManage = "can_manage"
+    }
+}
+
+struct MobileMonitoringDetailMeta: Codable, Equatable {
+    var generatedAt: Date
+    var range: MobileMonitoringDetailRange
+    var incidents: MobileMonitoringIncidentPagination
+    var sections: [String: MobileMonitoringDetailSection]
+
+    enum CodingKeys: String, CodingKey {
+        case generatedAt = "generated_at"
+        case range
+        case incidents
+        case sections
+    }
+}
+
+struct MobileMonitoringDetailRange: Codable, Equatable {
+    var days: Int
+    var from: Date
+    var to: Date
+}
+
+struct MobileMonitoringIncidentPagination: Codable, Equatable {
+    var limit: Int
+    var offset: Int
+    var hasMore: Bool
+    var nextOffset: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case limit
+        case offset
+        case hasMore = "has_more"
+        case nextOffset = "next_offset"
+    }
+}
+
+enum MobileMonitoringDetailSectionState: String, Codable {
+    case current
+    case stale
+    case empty
+    case unavailable
+}
+
+struct MobileMonitoringDetailSection: Codable, Equatable {
+    var state: MobileMonitoringDetailSectionState
+    var generatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case state
+        case generatedAt = "generated_at"
+    }
+}
+
+struct CachedMonitoringDetail: Codable, Equatable {
+    var payload: MobileMonitoringDetailResponse
+    var fetchedAt: Date
+}
+
 enum OverviewState: String, Codable {
     case healthy
     case degraded
