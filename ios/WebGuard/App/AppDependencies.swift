@@ -113,6 +113,8 @@ enum AppOperationState: Equatable {
     case registeringPush
     case updatingPushPreference
     case updatingMonitoringPreference
+    case savingMonitoring
+    case deletingMonitoring
 }
 
 struct AppAlert: Identifiable, Equatable {

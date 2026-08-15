@@ -5,6 +5,7 @@ struct MonitoringListView: View {
     @State private var query = ""
     @State private var filter: MonitorFilter = .systems
     @State private var selectedMonitor: KnownMonitor?
+    @State private var showingCreate = false
 
     private var filteredMonitors: [KnownMonitor] {
         let base = filter == .systems ? appState.monitors.filter { $0.status != nil } : appState.monitors
@@ -45,9 +46,17 @@ struct MonitoringListView: View {
                         MaintenanceSummaryCard(monitors: maintenanceMonitors)
                     }
 
-                    Text("Monitorings")
-                        .font(.system(size: 34, weight: .black, design: .rounded))
-                        .foregroundStyle(Brand.text)
+                    HStack {
+                        Text("Monitorings")
+                            .font(.system(size: 34, weight: .black, design: .rounded))
+                            .foregroundStyle(Brand.text)
+                        Spacer()
+                        Button { showingCreate = true } label: {
+                            Label("Monitoring erstellen", systemImage: "plus")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                    }
 
                     Picker("Filter", selection: $filter) {
                         Text("Alle Systeme").tag(MonitorFilter.systems)
@@ -108,6 +117,11 @@ struct MonitoringListView: View {
                 MonitoringDetailView(monitor: monitor)
             }
             .background(Brand.background)
+            .sheet(isPresented: $showingCreate) {
+                MonitoringEditorView(monitor: nil) { created in
+                    selectedMonitor = created
+                }
+            }
         }
     }
 
@@ -338,6 +352,8 @@ struct MonitoringDetailView: View {
     @State private var detail: MobileMonitoringDetailResponse?
     @State private var isRefreshing = false
     @State private var isLoadingMoreIncidents = false
+    @State private var showingEditor = false
+    @State private var showingDeleteConfirmation = false
 
     init(monitor: KnownMonitor) {
         _monitor = State(initialValue: monitor)
@@ -488,11 +504,32 @@ struct MonitoringDetailView: View {
         }
         .navigationTitle("Monitoring")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Bearbeiten") { showingEditor = true }
+                Button(role: .destructive) { showingDeleteConfirmation = true } label: {
+                    Image(systemName: "trash")
+                }
+                .accessibilityLabel("Monitoring löschen")
+            }
+        }
         .accessibilityIdentifier(WebGuardAccessibilityID.monitoringDetail(monitor.id))
         .background(Brand.background)
         .task {
             detail = appState.monitoringDetail(for: monitor.id)?.payload
             await refreshDetail()
+        }
+        .sheet(isPresented: $showingEditor) {
+            MonitoringEditorView(monitor: monitor) { updated in
+                monitor = updated
+            }
+        }
+        .confirmationDialog("Monitoring löschen?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Endgültig löschen", role: .destructive) {
+                Task { _ = await appState.deleteMonitoring(monitor.id) }
+            }
+        } message: {
+            Text("Das Monitoring wird serverseitig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.")
         }
     }
 
@@ -875,6 +912,89 @@ private struct IncidentTimelineRow: View {
                 .foregroundStyle(Brand.mutedText)
         }
         .padding(.vertical, 10)
+    }
+}
+
+private struct MonitoringEditorView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    let monitor: KnownMonitor?
+    let onSaved: (KnownMonitor) -> Void
+    @State private var name: String
+    @State private var target: String
+    @State private var type: String
+    @State private var status: String
+    @State private var port: String
+    @State private var isSaving = false
+
+    init(monitor: KnownMonitor?, onSaved: @escaping (KnownMonitor) -> Void) {
+        self.monitor = monitor
+        self.onSaved = onSaved
+        _name = State(initialValue: monitor?.name ?? "")
+        _target = State(initialValue: monitor?.target ?? "")
+        _type = State(initialValue: monitor?.type ?? "http")
+        _status = State(initialValue: monitor?.status == "paused" ? "paused" : "active")
+        _port = State(initialValue: "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Grunddaten") {
+                    TextField("Name", text: $name)
+                    TextField("Ziel", text: $target)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Picker("Typ", selection: $type) {
+                        Text("HTTP").tag("http")
+                        Text("Ping").tag("ping")
+                        Text("Port").tag("port")
+                    }
+                    Picker("Status", selection: $status) {
+                        Text("Aktiv").tag("active")
+                        Text("Pausiert").tag("paused")
+                    }
+                }
+                if type == "port" {
+                    Section("Port-Konfiguration") {
+                        TextField("Port", text: $port).keyboardType(.numberPad)
+                    }
+                }
+                Section {
+                    Text("Ein Erstellen wird bei unbekanntem Ergebnis nicht automatisch wiederholt. Änderungen und Löschen verwenden die serverseitig definierten idempotenten Methoden.")
+                        .font(.footnote)
+                        .foregroundStyle(Brand.mutedText)
+                }
+            }
+            .navigationTitle(monitor == nil ? "Monitoring erstellen" : "Monitoring bearbeiten")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isSaving ? "Speichern…" : "Speichern") { Task { await save() } }
+                        .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || target.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (type == "port" && Int(port) == nil))
+                }
+            }
+        }
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+        let payload = MonitoringMutationPayload(
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            target: target.trimmingCharacters(in: .whitespacesAndNewlines),
+            type: type,
+            status: status,
+            timeout: type == "http" ? 10 : nil,
+            httpMethod: type == "http" ? "GET" : nil,
+            expectedHTTPStatuses: type == "http" ? "200-299" : nil,
+            httpHeaders: type == "http" ? [:] : nil,
+            port: type == "port" ? Int(port) : nil
+        )
+        if let saved = await appState.saveMonitoring(id: monitor?.id, payload: payload) {
+            onSaved(saved)
+            dismiss()
+        }
     }
 }
 
