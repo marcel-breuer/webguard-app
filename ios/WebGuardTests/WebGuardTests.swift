@@ -462,6 +462,12 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
         throw TestError.unexpectedCall
     }
 
+    func monitoringGroups() async throws -> [MobileMonitoringGroup] { throw TestError.unexpectedCall }
+    func saveMonitoringGroup(id: String?, payload: MonitoringGroupMutationPayload) async throws -> MobileMonitoringGroup { throw TestError.unexpectedCall }
+    func deleteMonitoringGroup(id: String) async throws { throw TestError.unexpectedCall }
+    func teams() async throws -> [TeamSummary] { throw TestError.unexpectedCall }
+    func moveMonitoring(id: String, toTeamID: String?) async throws -> MonitoringManagementResponse { throw TestError.unexpectedCall }
+
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
         throw TestError.unexpectedCall
     }

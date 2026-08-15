@@ -6,6 +6,7 @@ struct MonitoringListView: View {
     @State private var filter: MonitorFilter = .systems
     @State private var selectedMonitor: KnownMonitor?
     @State private var showingCreate = false
+    @State private var showingCollaboration = false
 
     private var filteredMonitors: [KnownMonitor] {
         let base = filter == .systems ? appState.monitors.filter { $0.status != nil } : appState.monitors
@@ -56,6 +57,11 @@ struct MonitoringListView: View {
                                 .font(.system(size: 15, weight: .bold, design: .rounded))
                         }
                         .buttonStyle(PrimaryButtonStyle())
+                        Button { showingCollaboration = true } label: {
+                            Image(systemName: "person.3")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("Teams und Monitoring-Gruppen")
                     }
 
                     Picker("Filter", selection: $filter) {
@@ -121,6 +127,9 @@ struct MonitoringListView: View {
                 MonitoringEditorView(monitor: nil) { created in
                     selectedMonitor = created
                 }
+            }
+            .sheet(isPresented: $showingCollaboration) {
+                CollaborationWorkspaceView()
             }
         }
     }
@@ -912,6 +921,131 @@ private struct IncidentTimelineRow: View {
                 .foregroundStyle(Brand.mutedText)
         }
         .padding(.vertical, 10)
+    }
+}
+
+private struct CollaborationWorkspaceView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var editingGroup: MobileMonitoringGroup?
+    @State private var showingNewGroup = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Teams") {
+                    if appState.teams.isEmpty {
+                        Text("Keine Teams sichtbar.").foregroundStyle(Brand.mutedText)
+                    } else {
+                        ForEach(appState.teams) { team in
+                            VStack(alignment: .leading) {
+                                Text(team.name).font(.headline)
+                                if let description = team.description, !description.isEmpty { Text(description).font(.footnote).foregroundStyle(Brand.mutedText) }
+                            }
+                        }
+                    }
+                }
+                Section("Private Monitoring-Gruppen") {
+                    ForEach(appState.monitoringGroups) { group in
+                        Button { editingGroup = group } label: {
+                            VStack(alignment: .leading) {
+                                Text(group.name).foregroundStyle(Brand.text)
+                                Text("\(group.assignableMonitoringCount) zuweisbare Monitorings").font(.footnote).foregroundStyle(Brand.mutedText)
+                            }
+                        }
+                    }
+                    .onDelete { offsets in
+                        for index in offsets { Task { _ = await appState.deleteMonitoringGroup(appState.monitoringGroups[index].id) } }
+                    }
+                }
+                Section("Ownership") {
+                    ForEach(appState.monitors) { monitoring in
+                        Menu {
+                            ForEach(appState.teams) { team in
+                                Button("Team: \(team.name)") { Task { _ = await appState.setMonitoringOwnership(monitoring, teamID: team.id) } }
+                            }
+                            Button("Privat verwalten") { Task { _ = await appState.setMonitoringOwnership(monitoring, teamID: nil) } }
+                        } label: {
+                            HStack { Text(monitoring.name); Spacer(); Image(systemName: "person.2") }
+                        }
+                    }
+                    Text("Nur serverseitig autorisierte Team-Administratoren können Ownership ändern; Team-Monitorings werden aus privaten Gruppen entfernt.")
+                        .font(.footnote).foregroundStyle(Brand.mutedText)
+                }
+            }
+            .navigationTitle("Zusammenarbeit")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Fertig") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button { showingNewGroup = true } label: { Image(systemName: "plus") } }
+            }
+            .task { await appState.refreshCollaboration() }
+            .refreshable { await appState.refreshCollaboration() }
+            .sheet(item: $editingGroup) { group in MonitoringGroupEditorView(group: group) }
+            .sheet(isPresented: $showingNewGroup) { MonitoringGroupEditorView(group: nil) }
+        }
+    }
+}
+
+private struct MonitoringGroupEditorView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    let group: MobileMonitoringGroup?
+    @State private var name: String
+    @State private var description: String
+    @State private var selectedIDs: Set<String>
+
+    init(group: MobileMonitoringGroup?) {
+        self.group = group
+        _name = State(initialValue: group?.name ?? "")
+        _description = State(initialValue: group?.description ?? "")
+        _selectedIDs = State(initialValue: Set(group?.assignments.map(\.id) ?? []))
+    }
+
+    private var assignable: [KnownMonitor] { appState.monitors.filter { $0.ownership?.type != "team" } }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Gruppe") {
+                    TextField("Name", text: $name)
+                    TextField("Beschreibung", text: $description, axis: .vertical)
+                }
+                Section("Private Monitorings") {
+                    ForEach(assignable) { monitoring in
+                        Toggle(monitoring.name, isOn: selectionBinding(for: monitoring.id))
+                    }
+                }
+            }
+            .navigationTitle(group == nil ? "Gruppe erstellen" : "Gruppe bearbeiten")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") { Task { await save() } }
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+
+    private func save() async {
+        let saved = await appState.saveMonitoringGroup(
+            id: group?.id,
+            payload: MonitoringGroupMutationPayload(name: name, description: description.isEmpty ? nil : description, monitoringIDs: Array(selectedIDs))
+        )
+        if saved { dismiss() }
+    }
+
+    private func selectionBinding(for id: String) -> Binding<Bool> {
+        Binding(
+            get: { selectedIDs.contains(id) },
+            set: { selected in
+                if selected {
+                    selectedIDs.insert(id)
+                } else {
+                    selectedIDs.remove(id)
+                }
+            }
+        )
     }
 }
 

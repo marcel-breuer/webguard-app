@@ -36,6 +36,11 @@ protocol WebGuardAPIClientProtocol {
     func createMonitoring(_ payload: MonitoringMutationPayload) async throws -> MonitoringManagementResponse
     func updateMonitoring(id: String, payload: MonitoringMutationPayload) async throws -> MonitoringManagementResponse
     func deleteMonitoring(id: String) async throws
+    func monitoringGroups() async throws -> [MobileMonitoringGroup]
+    func saveMonitoringGroup(id: String?, payload: MonitoringGroupMutationPayload) async throws -> MobileMonitoringGroup
+    func deleteMonitoringGroup(id: String) async throws
+    func teams() async throws -> [TeamSummary]
+    func moveMonitoring(id: String, toTeamID: String?) async throws -> MonitoringManagementResponse
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference
     func updateMonitoringNotificationPreference(
         monitoringID: String,
@@ -87,6 +92,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
                 target: monitoring.target,
                 status: monitoring.status,
                 type: monitoring.type,
+                ownership: monitoring.ownership,
                 lastSeenAt: Date(),
                 maintenanceActive: monitoring.maintenanceActive,
                 maintenanceFrom: monitoring.maintenanceFrom,
@@ -165,6 +171,36 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
 
     func deleteMonitoring(id: String) async throws {
         try await requestNoResponse("/monitorings/\(id)", method: "DELETE")
+    }
+
+    func monitoringGroups() async throws -> [MobileMonitoringGroup] {
+        let response: MobileMonitoringGroupListResponse = try await request("/mobile/monitoring-groups?per_page=100", method: "GET")
+        return response.data
+    }
+
+    func saveMonitoringGroup(id: String?, payload: MonitoringGroupMutationPayload) async throws -> MobileMonitoringGroup {
+        let response: MobileMonitoringGroupResponse = if let id {
+            try await request("/mobile/monitoring-groups/\(id)", method: "PATCH", body: payload)
+        } else {
+            try await request("/mobile/monitoring-groups", method: "POST", body: payload)
+        }
+        return response.data
+    }
+
+    func deleteMonitoringGroup(id: String) async throws {
+        try await requestNoResponse("/mobile/monitoring-groups/\(id)", method: "DELETE")
+    }
+
+    func teams() async throws -> [TeamSummary] {
+        let response: TeamListResponse = try await request("/teams", method: "GET")
+        return response.data
+    }
+
+    func moveMonitoring(id: String, toTeamID: String?) async throws -> MonitoringManagementResponse {
+        if let toTeamID {
+            return try await request("/monitorings/\(id)/team-ownership", method: "POST", body: ["team_id": toTeamID])
+        }
+        return try await request("/monitorings/\(id)/team-ownership", method: "DELETE")
     }
 
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
