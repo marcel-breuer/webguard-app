@@ -49,6 +49,10 @@ protocol WebGuardAPIClientProtocol {
     func notificationBoard(cursor: String?, eventType: String?, showRead: Bool) async throws -> MobileNotificationBoardResponse
     func markNotificationRead(id: String) async throws
     func markAllNotificationsRead() async throws -> Int
+    func statusPages() async throws -> [MobileStatusPage]
+    func statusPageIncidents(statusPageID: String) async throws -> [MobileIncidentWorkspace]
+    func updateStatusPagePublication(id: String, isPublic: Bool) async throws -> MobileStatusPage
+    func publishIncidentUpdate(statusPageID: String, incidentID: String, payload: MobileIncidentUpdatePayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference
     func updateMonitoringNotificationPreference(
         monitoringID: String,
@@ -261,6 +265,23 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         return response.meta?.unreadCount ?? 0
     }
 
+    func statusPages() async throws -> [MobileStatusPage] {
+        let response: MobileStatusPageListResponse = try await request("/mobile/status-pages?per_page=100", method: "GET")
+        return response.data
+    }
+    func statusPageIncidents(statusPageID: String) async throws -> [MobileIncidentWorkspace] {
+        let response: MobileIncidentWorkspaceListResponse = try await request("/mobile/status-pages/\(statusPageID)/incidents?state=open&per_page=100", method: "GET")
+        return response.data
+    }
+    func updateStatusPagePublication(id: String, isPublic: Bool) async throws -> MobileStatusPage {
+        let response: MobileStatusPageResponse = try await request("/mobile/status-pages/\(id)/publication", method: "PATCH", body: ["is_public": isPublic])
+        return response.data
+    }
+    func publishIncidentUpdate(statusPageID: String, incidentID: String, payload: MobileIncidentUpdatePayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace {
+        let response: MobileIncidentWorkspaceResponse = try await performRequest("/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/updates", apiPrefix: "/api/v1", method: "POST", bodyData: encoder.encode(payload), headers: ["Idempotency-Key": idempotencyKey])
+        return response.data
+    }
+
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
         let response: MonitoringNotificationPreferenceResponse = try await request(
             "/mobile/monitorings/\(monitorID)/notification-preferences",
@@ -339,7 +360,8 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         _ path: String,
         apiPrefix: String,
         method: String,
-        bodyData: Data?
+        bodyData: Data?,
+        headers: [String: String] = [:]
     ) async throws -> Response {
         let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
         let normalizedPrefix = apiPrefix.hasPrefix("/") ? apiPrefix : "/\(apiPrefix)"
@@ -357,6 +379,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         request.timeoutInterval = 15
+        headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
 
         request.httpBody = bodyData
 

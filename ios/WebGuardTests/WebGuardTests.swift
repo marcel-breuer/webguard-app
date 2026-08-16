@@ -537,6 +537,10 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
     func notificationBoard(cursor: String?, eventType: String?, showRead: Bool) async throws -> MobileNotificationBoardResponse { try notificationBoardResult.get() }
     func markNotificationRead(id: String) async throws {}
     func markAllNotificationsRead() async throws -> Int { try markAllNotificationReadResult.get() }
+    func statusPages() async throws -> [MobileStatusPage] { [] }
+    func statusPageIncidents(statusPageID: String) async throws -> [MobileIncidentWorkspace] { [] }
+    func updateStatusPagePublication(id: String, isPublic: Bool) async throws -> MobileStatusPage { throw TestError.unexpectedCall }
+    func publishIncidentUpdate(statusPageID: String, incidentID: String, payload: MobileIncidentUpdatePayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace { throw TestError.unexpectedCall }
 
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
         throw TestError.unexpectedCall

@@ -18,6 +18,8 @@ final class AppState: ObservableObject {
     @Published private(set) var oneOffMaintenance: [MobileMaintenanceWindow] = []
     @Published private(set) var recurringMaintenance: [MobileMaintenanceWindow] = []
     @Published private(set) var maintenanceCapabilities: MobileMaintenanceCapabilities?
+    @Published private(set) var statusPages: [MobileStatusPage] = []
+    @Published private(set) var statusPageIncidents: [String: [MobileIncidentWorkspace]] = [:]
     @Published var pendingMonitoringID: String?
     @Published var isOffline = false
     @Published var lastMonitoringRefreshAt: Date?
@@ -562,6 +564,35 @@ final class AppState: ObservableObject {
             monitoringLoadState = monitors.isEmpty ? .failed : .stale
             show(error)
         }
+    }
+
+    func refreshStatusPages() async {
+        guard let client = apiClient else { return }
+        do { statusPages = try await client.statusPages(); isOffline = false; updateLastAPICallAt() }
+        catch WebGuardAPIError.unauthorized { await signOut(); show(WebGuardAPIError.unauthorized) }
+        catch { isOffline = true; show(error) }
+    }
+
+    func refreshStatusPageIncidents(_ statusPageID: String) async {
+        guard let client = apiClient else { return }
+        do { statusPageIncidents[statusPageID] = try await client.statusPageIncidents(statusPageID: statusPageID); updateLastAPICallAt() }
+        catch WebGuardAPIError.unauthorized { await signOut(); show(WebGuardAPIError.unauthorized) }
+        catch { show(error) }
+    }
+
+    func setStatusPagePublication(_ statusPage: MobileStatusPage, isPublic: Bool) async {
+        guard let client = apiClient, statusPage.publication.canChange else { return }
+        do { let updated = try await client.updateStatusPagePublication(id: statusPage.id, isPublic: isPublic); statusPages = statusPages.map { $0.id == updated.id ? updated : $0 }; updateLastAPICallAt() }
+        catch { show(error) }
+    }
+
+    func publishIncidentUpdate(statusPageID: String, incidentID: String, status: String, message: String, idempotencyKey: String) async {
+        guard let client = apiClient else { return }
+        do {
+            let updated = try await client.publishIncidentUpdate(statusPageID: statusPageID, incidentID: incidentID, payload: MobileIncidentUpdatePayload(status: status, message: message), idempotencyKey: idempotencyKey)
+            statusPageIncidents[statusPageID] = (statusPageIncidents[statusPageID] ?? []).map { $0.id == updated.id ? updated : $0 }
+            updateLastAPICallAt()
+        } catch { show(error) }
     }
 
     func refreshNotificationBoard() async {
