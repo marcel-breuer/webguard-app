@@ -972,6 +972,24 @@ struct MobileNotificationReadMeta: Decodable {
     }
 }
 
+struct MobileStatusPageListResponse: Decodable { var data: [MobileStatusPage] }
+struct MobileStatusPageResponse: Decodable { var data: MobileStatusPage }
+struct MobileStatusPage: Codable, Identifiable, Equatable {
+    var id: String; var name: String; var description: String?; var publication: MobileStatusPagePublication
+    var componentCount: Int; var verifiedSubscriberCount: Int; var openIncidentCount: Int
+    enum CodingKeys: String, CodingKey { case id, name, description, publication; case componentCount = "component_count"; case verifiedSubscriberCount = "verified_subscriber_count"; case openIncidentCount = "open_incident_count" }
+}
+struct MobileStatusPagePublication: Codable, Equatable { var isPublic: Bool; var canChange: Bool; enum CodingKeys: String, CodingKey { case isPublic = "is_public"; case canChange = "can_change" } }
+struct MobileIncidentWorkspaceListResponse: Decodable { var data: [MobileIncidentWorkspace] }
+struct MobileIncidentWorkspaceResponse: Decodable { var data: MobileIncidentWorkspace }
+struct MobileIncidentWorkspace: Codable, Identifiable, Equatable {
+    var id: String; var monitoring: MobileNotificationBoardMonitoring; var lifecycle: MobileIncidentLifecycle; var readiness: MobileIncidentReadiness; var updates: [MobileIncidentUpdate]
+}
+struct MobileIncidentLifecycle: Codable, Equatable { var state: String; var openedAt: Date?; var resolvedAt: Date?; enum CodingKeys: String, CodingKey { case state; case openedAt = "opened_at"; case resolvedAt = "resolved_at" } }
+struct MobileIncidentReadiness: Codable, Equatable { var canPublishUpdate: Bool; var requiresPublicUpdate: Bool; var updateCount: Int; enum CodingKeys: String, CodingKey { case canPublishUpdate = "can_publish_update"; case requiresPublicUpdate = "requires_public_update"; case updateCount = "update_count" } }
+struct MobileIncidentUpdate: Codable, Identifiable, Equatable { var id: String; var status: String; var message: String; var publishedAt: Date?; enum CodingKeys: String, CodingKey { case id, status, message; case publishedAt = "published_at" } }
+struct MobileIncidentUpdatePayload: Encodable { var status: String; var message: String }
+
 struct CachedNotificationBoard: Codable, Equatable {
     var entries: [MobileNotificationBoardEntry]
     var meta: MobileNotificationBoardMeta
