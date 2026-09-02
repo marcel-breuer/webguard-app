@@ -169,7 +169,7 @@ If a command cannot be executed, state why and describe the risk.
 ## API and Integration Rules
 
 - WebGuard API calls use JSON over HTTPS through `WebGuardAPIClient`.
-- Preserve documented endpoint prefixes: `/api/mobile` for mobile session endpoints and `/api/v1` for monitorings and mobile push devices.
+- Preserve documented endpoint prefixes: `/api` for standard platform resources and `/api/mobile` for mobile session and workflow endpoints.
 - Send bearer tokens only through the `Authorization` header.
 - Preserve existing timeout and JSON encoding/decoding behavior unless a task requires changing it.
 - Handle `401` and `403` as unauthorized session states.

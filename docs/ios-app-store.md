@@ -47,14 +47,14 @@ Die App ist erst voll nutzbar, wenn WebGuard Core diese Mobile-Endpunkte deployt
 POST /api/mobile/login
 GET  /api/mobile/me
 POST /api/mobile/logout
-GET  /api/v1/monitorings
-GET  /api/v1/monitorings/{id}/status
-GET  /api/v1/mobile/overview?service_page={page}
-GET  /api/v1/monitorings/{id}/notification-preferences
-PATCH /api/v1/monitorings/{id}/notification-preferences
-POST /api/v1/mobile-push-devices
-PATCH /api/v1/mobile-push-devices/{id}
-DELETE /api/v1/mobile-push-devices/{id}
+GET  /api/monitorings
+GET  /api/monitorings/{id}/status
+GET  /api/mobile/overview?service_page={page}
+GET  /api/mobile/monitorings/{id}/notification-preferences
+PATCH /api/mobile/monitorings/{id}/notification-preferences
+POST /api/mobile/push-devices
+PATCH /api/mobile/push-devices/{id}
+DELETE /api/mobile/push-devices/{id}
 ```
 
 Produktive APNs-Werte im Backend:
