@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import WebGuard
 
@@ -6,6 +7,75 @@ final class WebGuardTests: XCTestCase {
         let client = WebGuardAPIClient(serverURL: URL(string: "https://webguard.example.com/api?debug=true#section")!)
 
         XCTAssertEqual(client.serverURL.absoluteString, "https://webguard.example.com/api")
+    }
+
+    func testClientUsesConsolidatedCoreRoutes() async throws {
+        URLProtocolStub.reset()
+        URLProtocolStub.install { request in
+            let path = request.url?.path ?? ""
+            let body: Data
+
+            switch path {
+            case "/api/mobile/login":
+                body = #"{"data":{"token":"mobile-token","token_type":"Bearer","user":{"id":"user-1","name":"Marcel","email":"marcel@example.test"}}}"#.data(using: .utf8)!
+            case "/api/monitorings":
+                body = #"{"data":[]}"#.data(using: .utf8)!
+            case "/api/mobile/push-devices":
+                body = #"{"data":{"id":"device-1","platform":"ios","push_provider":"apns","enabled":true}}"#.data(using: .utf8)!
+            case "/api/mobile/status-pages/status-page-1/incidents/incident-1/updates":
+                body = #"{"data":{"id":"incident-1","monitoring":{"id":"monitor-1","name":"Example","target":"https://example.test"},"lifecycle":{"state":"investigating","opened_at":null,"resolved_at":null},"readiness":{"can_publish_update":true,"requires_public_update":false,"update_count":1},"updates":[]}}"#.data(using: .utf8)!
+            default:
+                body = Data()
+            }
+
+            let statusCode = request.httpMethod == "DELETE" ? 204 : 200
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+
+            return (response, body)
+        }
+        defer { URLProtocolStub.reset() }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let session = URLSession(configuration: configuration)
+        let unauthenticatedClient = WebGuardAPIClient(
+            serverURL: URL(string: "https://webguard.example.test")!,
+            urlSession: session
+        )
+        let authenticatedClient = WebGuardAPIClient(
+            serverURL: URL(string: "https://webguard.example.test")!,
+            token: "mobile-token",
+            urlSession: session
+        )
+        let deviceContext = DeviceContext(name: "Test iPhone", appVersion: "1.0", locale: "en_US", timezone: "UTC")
+
+        _ = try await unauthenticatedClient.login(email: "marcel@example.test", password: "password", deviceContext: deviceContext)
+        _ = try await authenticatedClient.listMonitorings()
+        _ = try await authenticatedClient.registerAPNsDevice(token: "apns-token", existingDeviceID: nil, deviceContext: deviceContext)
+        try await authenticatedClient.revokeMobilePushDevice(deviceID: "device-1")
+        _ = try await authenticatedClient.publishIncidentUpdate(
+            statusPageID: "status-page-1",
+            incidentID: "incident-1",
+            payload: MobileIncidentUpdatePayload(status: "investigating", message: "Investigating the incident."),
+            idempotencyKey: "request-1"
+        )
+
+        let requests = URLProtocolStub.recordedRequests()
+
+        XCTAssertEqual(requests.map { $0.url?.path }, [
+            "/api/mobile/login",
+            "/api/monitorings",
+            "/api/mobile/push-devices",
+            "/api/mobile/push-devices/device-1",
+            "/api/mobile/status-pages/status-page-1/incidents/incident-1/updates"
+        ])
+        XCTAssertEqual(requests.map { $0.httpMethod }, ["POST", "GET", "POST", "DELETE", "POST"])
+        XCTAssertEqual(requests[4].value(forHTTPHeaderField: "Idempotency-Key"), "request-1")
     }
 
     func testServerErrorDoesNotExposeResponseBody() {
@@ -142,6 +212,59 @@ final class WebGuardTests: XCTestCase {
             lastSeenAt: Date(timeIntervalSince1970: 0)
         )
     }
+}
+
+private final class URLProtocolStub: URLProtocol {
+    private static let lock = NSLock()
+    private static var handler: ((URLRequest) -> (HTTPURLResponse, Data))?
+    private static var requests: [URLRequest] = []
+
+    static func install(_ handler: @escaping (URLRequest) -> (HTTPURLResponse, Data)) {
+        lock.lock()
+        self.handler = handler
+        lock.unlock()
+    }
+
+    static func reset() {
+        lock.lock()
+        handler = nil
+        requests = []
+        lock.unlock()
+    }
+
+    static func recordedRequests() -> [URLRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Self.lock.lock()
+        Self.requests.append(request)
+        let handler = Self.handler
+        Self.lock.unlock()
+
+        guard let handler else {
+            fatalError("URLProtocolStub was used without a response handler.")
+        }
+
+        let (response, data) = handler(request)
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        if !data.isEmpty {
+            client?.urlProtocol(self, didLoad: data)
+        }
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
 
 @MainActor

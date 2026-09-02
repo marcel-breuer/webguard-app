@@ -58,14 +58,14 @@ The live API must provide these endpoints:
 POST /api/mobile/login
 GET  /api/mobile/me
 POST /api/mobile/logout
-GET  /api/v1/monitorings
-GET  /api/v1/monitorings/{id}/status
-GET  /api/v1/mobile/overview?service_page={page}
-GET  /api/v1/monitorings/{id}/notification-preferences
-PATCH /api/v1/monitorings/{id}/notification-preferences
-POST /api/v1/mobile-push-devices
-PATCH /api/v1/mobile-push-devices/{id}
-DELETE /api/v1/mobile-push-devices/{id}
+GET  /api/monitorings
+GET  /api/monitorings/{id}/status
+GET  /api/mobile/overview?service_page={page}
+GET  /api/mobile/monitorings/{id}/notification-preferences
+PATCH /api/mobile/monitorings/{id}/notification-preferences
+POST /api/mobile/push-devices
+PATCH /api/mobile/push-devices/{id}
+DELETE /api/mobile/push-devices/{id}
 ```
 
 APNs must be configured in the WebGuard Core deployment:
@@ -86,7 +86,7 @@ For local development builds installed directly from Xcode, `APNS_ENVIRONMENT=de
 1. The user signs in with their WebGuard email and password.
 2. The backend creates a mobile session.
 3. The app stores the session in the iOS Keychain.
-4. The app loads monitorings from `/api/v1/monitorings`.
+4. The app loads monitorings from `/api/monitorings`.
 5. The user enables push notifications.
 6. The app registers the APNs device token with `push_provider = apns`.
 7. WebGuard sends status changes directly through APNs.
@@ -198,8 +198,8 @@ Live API smoke test:
 ```text
 POST /api/mobile/login
 GET /api/mobile/me
-GET /api/v1/monitorings
-GET /api/v1/mobile/overview?service_page=1
+GET /api/monitorings
+GET /api/mobile/overview?service_page=1
 POST /api/mobile/logout
 ```
 

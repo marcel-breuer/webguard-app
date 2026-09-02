@@ -123,7 +123,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
     }
 
     func listMobilePushDevices() async throws -> [MobilePushDevice] {
-        let response: MobilePushDeviceListResponse = try await request("/mobile-push-devices", method: "GET")
+        let response: MobilePushDeviceListResponse = try await request("/mobile/push-devices", method: "GET")
         return response.data
     }
 
@@ -141,13 +141,13 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
             notificationsAuthorizedAt: WebGuardJSONCoding.string(from: Date())
         )
 
-        let response: MobilePushDeviceResponse = try await request("/mobile-push-devices", method: "POST", body: payload)
+        let response: MobilePushDeviceResponse = try await request("/mobile/push-devices", method: "POST", body: payload)
         return response.data
     }
 
     func updateMobilePushDevice(deviceID: String, enabled: Bool) async throws -> MobilePushDevice {
         let response: MobilePushDeviceResponse = try await request(
-            "/mobile-push-devices/\(deviceID)",
+            "/mobile/push-devices/\(deviceID)",
             method: "PATCH",
             body: ["enabled": enabled]
         )
@@ -156,7 +156,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
     }
 
     func revokeMobilePushDevice(deviceID: String) async throws {
-        try await requestNoResponse("/mobile-push-devices/\(deviceID)", method: "DELETE")
+        try await requestNoResponse("/mobile/push-devices/\(deviceID)", method: "DELETE")
     }
 
     func monitoringStatus(monitorID: String) async throws -> MonitoringStatusPayload {
@@ -278,7 +278,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         return response.data
     }
     func publishIncidentUpdate(statusPageID: String, incidentID: String, payload: MobileIncidentUpdatePayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace {
-        let response: MobileIncidentWorkspaceResponse = try await performRequest("/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/updates", apiPrefix: "/api/v1", method: "POST", bodyData: encoder.encode(payload), headers: ["Idempotency-Key": idempotencyKey])
+        let response: MobileIncidentWorkspaceResponse = try await performRequest("/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/updates", apiPrefix: "/api", method: "POST", bodyData: encoder.encode(payload), headers: ["Idempotency-Key": idempotencyKey])
         return response.data
     }
 
@@ -313,7 +313,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         _ path: String,
         method: String
     ) async throws -> Response {
-        try await performRequest(path, apiPrefix: "/api/v1", method: method, bodyData: nil)
+        try await performRequest(path, apiPrefix: "/api", method: method, bodyData: nil)
     }
 
     private func request<Response: Decodable>(
@@ -328,7 +328,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         _ path: String,
         method: String
     ) async throws {
-        let _: EmptyResponse = try await performRequest(path, apiPrefix: "/api/v1", method: method, bodyData: nil)
+        let _: EmptyResponse = try await performRequest(path, apiPrefix: "/api", method: method, bodyData: nil)
     }
 
     private func requestNoResponse(
@@ -344,7 +344,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         method: String,
         body: Body
     ) async throws -> Response {
-        try await performRequest(path, apiPrefix: "/api/v1", method: method, bodyData: encoder.encode(body))
+        try await performRequest(path, apiPrefix: "/api", method: method, bodyData: encoder.encode(body))
     }
 
     private func request<Response: Decodable, Body: Encodable>(
