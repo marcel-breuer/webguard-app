@@ -157,7 +157,7 @@ struct TeamSummary: Decodable, Identifiable {
 }
 
 struct MobileMaintenanceListResponse: Decodable { var data: [MobileMaintenanceWindow] }
-struct MobileMaintenanceResponse: Decodable { var data: MobileMaintenanceWindow; var idempotent: Bool? }
+struct MobileMaintenanceResponse: Decodable { var data: MobileMaintenanceWindow }
 
 struct MobileMaintenanceWindow: Codable, Identifiable, Equatable {
     var id: String
@@ -955,13 +955,7 @@ struct MobileNotificationBoardMonitoring: Codable, Equatable, Hashable {
 }
 
 struct MobileNotificationReadResponse: Decodable {
-    var data: MobileNotificationReadData
     var meta: MobileNotificationReadMeta?
-}
-
-struct MobileNotificationReadData: Decodable {
-    var id: String?
-    var read: Bool
 }
 
 struct MobileNotificationReadMeta: Decodable {
@@ -1014,18 +1008,12 @@ struct MobileLoginResponse: Decodable {
 
 struct MobileLoginData: Decodable {
     var token: String
-    var tokenType: String
     var user: AuthenticatedUser
 
     enum CodingKeys: String, CodingKey {
         case token
-        case tokenType = "token_type"
         case user
     }
-}
-
-struct MobileUserResponse: Decodable {
-    var data: AuthenticatedUser
 }
 
 struct APNsRegistrationPayload: Encodable {
@@ -1054,10 +1042,6 @@ struct APNsRegistrationPayload: Encodable {
 
 struct MobilePushDeviceResponse: Decodable {
     var data: MobilePushDevice
-}
-
-struct MobilePushDeviceListResponse: Decodable {
-    var data: [MobilePushDevice]
 }
 
 enum MonitorTone {

@@ -265,7 +265,6 @@ final class AppState: ObservableObject {
             let token = try await apnsService.requestAuthorizationAndRegister()
             let device = try await client.registerAPNsDevice(
                 token: token,
-                existingDeviceID: next.deviceID,
                 deviceContext: deviceContextProvider.currentDeviceContext()
             )
 

@@ -26,7 +26,6 @@ protocol WebGuardAPIClientProtocol {
     func operationsOverview(servicePage: Int) async throws -> MobileOverviewPayload
     func registerAPNsDevice(
         token apnsToken: String,
-        existingDeviceID: String?,
         deviceContext: DeviceContext
     ) async throws -> MobilePushDevice
     func updateMobilePushDevice(deviceID: String, enabled: Bool) async throws -> MobilePushDevice
@@ -84,12 +83,6 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         return response.data
     }
 
-    func authenticatedUser() async throws -> AuthenticatedUser {
-        let response: MobileUserResponse = try await request("/me", apiPrefix: "/api/mobile", method: "GET")
-
-        return response.data
-    }
-
     func logout() async throws {
         try await requestNoResponse("/logout", apiPrefix: "/api/mobile", method: "POST")
     }
@@ -122,14 +115,8 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         return response.data
     }
 
-    func listMobilePushDevices() async throws -> [MobilePushDevice] {
-        let response: MobilePushDeviceListResponse = try await request("/mobile/push-devices", method: "GET")
-        return response.data
-    }
-
     func registerAPNsDevice(
         token apnsToken: String,
-        existingDeviceID: String?,
         deviceContext: DeviceContext
     ) async throws -> MobilePushDevice {
         let payload = APNsRegistrationPayload(
