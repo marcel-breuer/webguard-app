@@ -56,7 +56,7 @@ final class WebGuardTests: XCTestCase {
 
         _ = try await unauthenticatedClient.login(email: "marcel@example.test", password: "password", deviceContext: deviceContext)
         _ = try await authenticatedClient.listMonitorings()
-        _ = try await authenticatedClient.registerAPNsDevice(token: "apns-token", existingDeviceID: nil, deviceContext: deviceContext)
+        _ = try await authenticatedClient.registerAPNsDevice(token: "apns-token", deviceContext: deviceContext)
         try await authenticatedClient.revokeMobilePushDevice(deviceID: "device-1")
         _ = try await authenticatedClient.publishIncidentUpdate(
             statusPageID: "status-page-1",
@@ -405,7 +405,6 @@ final class AppStateTests: XCTestCase {
         let api = MockAPIClient()
         api.loginResult = .success(MobileLoginData(
             token: "mobile-token",
-            tokenType: "Bearer",
             user: AuthenticatedUser(id: "user-1", name: "Test User", email: "test@example.test")
         ))
         api.monitoringsResult = .success([monitor])
@@ -614,7 +613,6 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
 
     func registerAPNsDevice(
         token apnsToken: String,
-        existingDeviceID: String?,
         deviceContext: DeviceContext
     ) async throws -> MobilePushDevice {
         throw TestError.unexpectedCall
