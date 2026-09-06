@@ -52,6 +52,7 @@ enum WebGuardAccessibilityID {
 
     static let monitoringPerformance = "webguard.monitorings.performance"
     static let monitoringServerHealth = "webguard.monitorings.server-health"
+    static let monitoringUptimeCalendar = "webguard.monitorings.uptime-calendar"
 
     static func notificationRow(_ id: String) -> String {
         "webguard.notifications.row.\(id)"
@@ -59,6 +60,10 @@ enum WebGuardAccessibilityID {
 
     static func notificationPreference(_ id: String) -> String {
         "webguard.settings.notification-preference.\(id)"
+    }
+
+    static func monitoringUptimeCalendarDay(_ date: String) -> String {
+        "webguard.monitorings.uptime-calendar-day.\(date)"
     }
 }
 
