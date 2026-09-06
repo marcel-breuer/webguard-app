@@ -78,6 +78,145 @@ final class WebGuardTests: XCTestCase {
         XCTAssertEqual(requests[4].value(forHTTPHeaderField: "Idempotency-Key"), "request-1")
     }
 
+    func testClientMapsConsolidatedMonitoringContractAndOwnershipRoutes() async throws {
+        URLProtocolStub.reset()
+        URLProtocolStub.install { request in
+            let path = request.url?.path ?? ""
+            let responseBody: String
+
+            switch (request.httpMethod, path) {
+            case ("GET", "/api/monitorings"):
+                responseBody = #"{"data":[{"id":"monitor-1","name":"API","target":"https://example.test","type":"http","lifecycle_status":"active","groups":[{"id":"group-1","name":"Production"}],"latest_check":{"status":"up","checked_at":"2026-08-22T10:30:00Z","response_time_ms":128.5},"ownership":{"type":"private","can_manage":true,"team_id":null,"team_name":null},"open_incident":false,"can_manage":true,"maintenance":{"starts_at":"2026-08-22T10:00:00Z","ends_at":"2026-08-22T11:00:00Z","has_recurring_window":true}}],"links":{"first":"https://example.test/api/monitorings?page=1","last":"https://example.test/api/monitorings?page=1","prev":null,"next":null},"meta":{"current_page":1,"last_page":1,"per_page":25,"from":1,"to":1,"total":1,"as_of":"2026-08-22T10:30:00Z"}}"#
+            case ("POST", "/api/monitorings"):
+                responseBody = #"{"data":{"id":"monitor-2","name":"Created","type":"http","lifecycle_status":"active","public_label_enabled":false,"ownership":{"type":"private","can_manage":true,"team_id":null},"group_assignments":[]}}"#
+            case ("PATCH", "/api/monitorings/monitor-2"):
+                responseBody = #"{"data":{"id":"monitor-2","name":"Updated","type":"http","lifecycle_status":"paused","public_label_enabled":false,"ownership":{"type":"private","can_manage":true,"team_id":null},"group_assignments":[{"id":"group-1","name":"Production"}]}}"#
+            case ("POST", "/api/monitorings/monitor-1/ownership/team"):
+                responseBody = #"{"data":{"id":"monitor-1","ownership":{"type":"team","can_manage":true,"team_id":"team-1","team_name":"Operations"}}}"#
+            case ("POST", "/api/monitorings/monitor-1/ownership/private"):
+                responseBody = #"{"data":{"id":"monitor-1","ownership":{"type":"private","can_manage":true,"team_id":null,"team_name":null}}}"#
+            case ("DELETE", "/api/monitorings/monitor-2"):
+                responseBody = ""
+            default:
+                responseBody = "{}"
+            }
+
+            let statusCode = request.httpMethod == "DELETE" ? 204 : 200
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+
+            return (response, Data(responseBody.utf8))
+        }
+        defer { URLProtocolStub.reset() }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let client = WebGuardAPIClient(
+            serverURL: URL(string: "https://webguard.example.test")!,
+            token: "mobile-token",
+            urlSession: URLSession(configuration: configuration)
+        )
+        let payload = MonitoringMutationPayload(
+            name: "Created",
+            target: "https://created.example.test",
+            type: "http",
+            status: "active",
+            timeout: 10,
+            httpMethod: "GET",
+            expectedHTTPStatuses: "200-299",
+            httpHeaders: [:],
+            port: nil
+        )
+
+        let monitors = try await client.listMonitorings()
+        let created = try await client.createMonitoring(payload)
+        let updated = try await client.updateMonitoring(id: "monitor-2", payload: payload)
+        let movedToTeam = try await client.moveMonitoring(id: "monitor-1", toTeamID: "team-1")
+        let movedToPrivate = try await client.moveMonitoring(id: "monitor-1", toTeamID: nil)
+        try await client.deleteMonitoring(id: "monitor-2")
+
+        XCTAssertEqual(monitors.first?.status, "up")
+        XCTAssertEqual(monitors.first?.lifecycleStatus, "active")
+        XCTAssertEqual(monitors.first?.lastSeenAt ?? .distantPast, Date(timeIntervalSince1970: 1_787_394_600))
+        XCTAssertEqual(monitors.first?.groups?.first?.name, "Production")
+        XCTAssertEqual(monitors.first?.ownership?.type, "private")
+        XCTAssertEqual(created.data.lifecycleStatus, "active")
+        XCTAssertEqual(updated.data.lifecycleStatus, "paused")
+        XCTAssertEqual(updated.data.groupAssignments?.first?.id, "group-1")
+        XCTAssertEqual(movedToTeam.data.ownership?.teamID, "team-1")
+        XCTAssertEqual(movedToPrivate.data.ownership?.type, "private")
+
+        let requests = URLProtocolStub.recordedRequests()
+        XCTAssertEqual(requests.map { $0.url?.path }, [
+            "/api/monitorings",
+            "/api/monitorings",
+            "/api/monitorings/monitor-2",
+            "/api/monitorings/monitor-1/ownership/team",
+            "/api/monitorings/monitor-1/ownership/private",
+            "/api/monitorings/monitor-2"
+        ])
+        XCTAssertEqual(requests.map { $0.httpMethod }, ["GET", "POST", "PATCH", "POST", "POST", "DELETE"])
+    }
+
+    func testClientTreatsUnauthorizedAndUnexpectedMonitoringResponsesAsFailures() async throws {
+        URLProtocolStub.reset()
+        URLProtocolStub.install { request in
+            let statusCode: Int
+            switch request.url?.path {
+            case "/api/monitorings": statusCode = 401
+            case "/api/monitorings/monitor-1": statusCode = 403
+            default: statusCode = 200
+            }
+            let body = statusCode == 401 ? Data() : Data(#"{"data":{"id":"monitor-1"}}"#.utf8)
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, body)
+        }
+        defer { URLProtocolStub.reset() }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let client = WebGuardAPIClient(
+            serverURL: URL(string: "https://webguard.example.test")!,
+            urlSession: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await client.listMonitorings()
+            XCTFail("Expected unauthorized response")
+        } catch WebGuardAPIError.unauthorized {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        do {
+            try await client.deleteMonitoring(id: "monitor-1")
+            XCTFail("Expected forbidden response")
+        } catch WebGuardAPIError.unauthorized {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        do {
+            _ = try await client.createMonitoring(MonitoringMutationPayload(name: "API", target: "https://example.test", type: "http", status: "active", timeout: nil, httpMethod: nil, expectedHTTPStatuses: nil, httpHeaders: nil, port: nil))
+            XCTFail("Expected decoding failure")
+        } catch DecodingError.keyNotFound(_, _) {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testServerErrorDoesNotExposeResponseBody() {
         let message = WebGuardAPIError.requestFailed(503).localizedDescription
 

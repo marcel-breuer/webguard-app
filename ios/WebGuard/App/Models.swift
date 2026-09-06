@@ -43,9 +43,47 @@ struct KnownMonitor: Codable, Identifiable, Equatable, Hashable {
     var type: String? = nil
     var ownership: MobileMonitoringOwnership? = nil
     var lastSeenAt: Date
+    var lifecycleStatus: String? = nil
+    var groups: [MonitoringGroupReference]? = nil
     var maintenanceActive: Bool? = nil
     var maintenanceFrom: Date? = nil
     var maintenanceUntil: Date? = nil
+    var maintenanceHasRecurringWindow: Bool? = nil
+}
+
+struct MonitoringGroupReference: Codable, Equatable, Hashable, Identifiable {
+    var id: String
+    var name: String
+}
+
+struct MonitoringLatestCheck: Decodable, Equatable {
+    var status: String?
+    var checkedAt: Date?
+    var responseTimeMs: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case checkedAt = "checked_at"
+        case responseTimeMs = "response_time_ms"
+    }
+}
+
+struct MonitoringMaintenanceSummary: Decodable, Equatable {
+    var startsAt: Date?
+    var endsAt: Date?
+    var hasRecurringWindow: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case startsAt = "starts_at"
+        case endsAt = "ends_at"
+        case hasRecurringWindow = "has_recurring_window"
+    }
+
+    var isActive: Bool? {
+        guard let startsAt else { return nil }
+        let now = Date()
+        return startsAt <= now && (endsAt == nil || endsAt.map { $0 > now } == true)
+    }
 }
 
 struct PushEvent: Codable, Identifiable, Equatable {
@@ -217,24 +255,35 @@ struct MaintenanceSchedulePayload: Encodable {
 
 struct MonitoringManagementItem: Decodable, Equatable {
     var id: String
-    var name: String
-    var target: String
-    var type: String
-    var status: String
+    var name: String?
+    var target: String?
+    var type: String?
+    var lifecycleStatus: String?
+    var status: String?
     var ownership: MobileMonitoringOwnership?
+    var groupAssignments: [MonitoringGroupReference]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, target, type, ownership, status
+        case lifecycleStatus = "lifecycle_status"
+        case groupAssignments = "group_assignments"
+    }
 
     func knownMonitor(fallback: KnownMonitor? = nil) -> KnownMonitor {
         KnownMonitor(
             id: id,
-            name: name,
-            target: target,
-            status: status,
-            type: type,
+            name: name ?? fallback?.name ?? "Monitoring",
+            target: target ?? fallback?.target ?? "",
+            status: lifecycleStatus ?? status ?? fallback?.status,
+            type: type ?? fallback?.type,
             ownership: ownership,
             lastSeenAt: fallback?.lastSeenAt ?? Date(),
+            lifecycleStatus: lifecycleStatus ?? fallback?.lifecycleStatus,
+            groups: groupAssignments ?? fallback?.groups,
             maintenanceActive: fallback?.maintenanceActive,
             maintenanceFrom: fallback?.maintenanceFrom,
-            maintenanceUntil: fallback?.maintenanceUntil
+            maintenanceUntil: fallback?.maintenanceUntil,
+            maintenanceHasRecurringWindow: fallback?.maintenanceHasRecurringWindow
         )
     }
 }
@@ -297,10 +346,14 @@ struct MobileMonitoringDetailSummary: Codable, Equatable {
 struct MobileMonitoringOwnership: Codable, Equatable, Hashable {
     var type: String?
     var canManage: Bool?
+    var teamID: String?
+    var teamName: String?
 
     enum CodingKeys: String, CodingKey {
         case type
         case canManage = "can_manage"
+        case teamID = "team_id"
+        case teamName = "team_name"
     }
 }
 
@@ -803,21 +856,27 @@ struct MonitoringSummary: Decodable, Identifiable {
     var id: String
     var name: String
     var target: String
-    var status: String?
     var type: String?
+    var lifecycleStatus: String?
+    var groups: [MonitoringGroupReference]
+    var latestCheck: MonitoringLatestCheck?
     var ownership: MobileMonitoringOwnership?
-    var maintenanceActive: Bool?
-    var maintenanceFrom: Date?
-    var maintenanceUntil: Date?
+    var openIncident: Bool
+    var canManage: Bool?
+    var maintenance: MonitoringMaintenanceSummary
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case target
-        case status
-        case maintenanceActive = "maintenance_active"
-        case maintenanceFrom = "maintenance_from"
-        case maintenanceUntil = "maintenance_until"
+        case type
+        case lifecycleStatus = "lifecycle_status"
+        case groups
+        case latestCheck = "latest_check"
+        case ownership
+        case openIncident = "open_incident"
+        case canManage = "can_manage"
+        case maintenance
     }
 }
 
@@ -1118,6 +1177,10 @@ extension KnownMonitor {
         }
 
         if maintenanceFrom.map({ $0 > now }) == true {
+            return .upcoming
+        }
+
+        if maintenanceHasRecurringWindow == true {
             return .upcoming
         }
 
