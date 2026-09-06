@@ -390,6 +390,7 @@ private struct StatusPageIncidentWorkspaceCard: View {
                     }
                     WorkspaceValueRow(label: "Zuständig", value: followUp.assignedUser?.name ?? followUp.assignedUser?.id)
                     WorkspaceValueRow(label: "Fällig", value: followUp.dueAt)
+                    WorkspaceValueRow(label: "Abgeschlossen", value: followUp.completedAt?.formatted(date: .abbreviated, time: .shortened))
                     if let description = followUp.description, !description.isEmpty {
                         Text(description).font(.system(size: 13, design: .rounded)).foregroundStyle(Brand.mutedText)
                     }
