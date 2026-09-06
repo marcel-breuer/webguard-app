@@ -51,6 +51,28 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(decoded, overview)
     }
 
+    func testOverviewTrendPreservesNoDataAndDeliveryFailureSignals() throws {
+        var overview = MobileOverviewPayload.fallback(monitors: [], events: [])
+        overview.trend = [
+            OverviewTrendPoint(date: "2026-08-20", label: "Mi", uptimePercentage: 100, hasData: true),
+            OverviewTrendPoint(date: "2026-08-21", label: "Do", uptimePercentage: nil, hasData: false),
+            OverviewTrendPoint(date: "2026-08-22", label: "Fr", uptimePercentage: 0, hasData: true)
+        ]
+        overview.failedDeliveryCount = 2
+        overview.recommendedAction = "notifications"
+
+        let decoded = try JSONDecoder().decode(
+            MobileOverviewPayload.self,
+            from: JSONEncoder().encode(overview)
+        )
+
+        XCTAssertEqual(decoded.trend, overview.trend)
+        XCTAssertEqual(decoded.trend[1].uptimePercentage, nil)
+        XCTAssertTrue(decoded.trend[2].hasData)
+        XCTAssertEqual(decoded.failedDeliveryCount, 2)
+        XCTAssertEqual(decoded.recommendedAction, "notifications")
+    }
+
     func testMonitoringFixtureDecodesConsolidatedCoreMonitoringPayload() throws {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601

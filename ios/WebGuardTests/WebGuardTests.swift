@@ -333,6 +333,8 @@ final class WebGuardTests: XCTestCase {
     func testAccessibilityIdentifiersExposeStableStateMatrixTargets() {
         XCTAssertEqual(WebGuardAccessibilityID.overview, "webguard.overview")
         XCTAssertEqual(WebGuardAccessibilityID.overviewDataState, "webguard.overview.data-state")
+        XCTAssertEqual(WebGuardAccessibilityID.overviewUptimeTrend, "webguard.overview.uptime-trend")
+        XCTAssertEqual(WebGuardAccessibilityID.overviewDeliveryFailures, "webguard.overview.delivery-failures")
         XCTAssertEqual(WebGuardAccessibilityID.overviewServiceLandscape, "webguard.overview.service-landscape")
         XCTAssertEqual(WebGuardAccessibilityID.service("monitor-1"), "webguard.overview.service.monitor-1")
         XCTAssertEqual(WebGuardAccessibilityID.attention("incident-1"), "webguard.overview.attention.incident-1")

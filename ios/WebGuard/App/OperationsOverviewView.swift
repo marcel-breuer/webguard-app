@@ -18,6 +18,10 @@ struct OperationsOverviewView: View {
                     } else {
                         HealthSummaryCard(summary: appState.overview.summary, state: appState.overview.overallState)
 
+                        OverviewTrendCard(overview: appState.overview)
+
+                        DeliveryFailureCard(count: appState.overview.failedDeliveryCount)
+
                         if !appState.overview.attention.isEmpty {
                             AttentionCard(items: appState.overview.attention, monitors: appState.monitors)
                         }
@@ -357,6 +361,168 @@ private struct SummaryMetric: View {
     }
 }
 
+private struct OverviewTrendCard: View {
+    @EnvironmentObject private var appState: AppState
+    let overview: MobileOverviewPayload
+
+    private var points: [OverviewTrendPoint] {
+        Array(overview.trend.sorted { $0.date < $1.date }.suffix(7))
+    }
+
+    var body: some View {
+        DashboardSection(title: "Live-Uptime-Trend", subtitle: "Letzte 7 Tage") {
+            if points.isEmpty {
+                Text("Für diesen Zeitraum liegen noch keine Trenddaten vor.")
+                    .font(.system(size: 14, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(alignment: .bottom, spacing: 8) {
+                    ForEach(points) { point in
+                        VStack(spacing: 6) {
+                            if let uptimePercentage = point.uptimePercentage, point.hasData {
+                                Text(uptimeLabel(uptimePercentage))
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundStyle(pointColor(point))
+                                    .lineLimit(1)
+                            } else {
+                                Text("—")
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundStyle(pointColor(point))
+                            }
+
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(pointColor(point).opacity(point.hasData ? 0.9 : 0.25))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: barHeight(point))
+
+                            Text(point.label)
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(Brand.mutedText)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(accessibilityLabel(for: point))
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 100, alignment: .bottom)
+            }
+
+            if let freshnessMessage {
+                Label(freshnessMessage, systemImage: appState.isOffline ? "wifi.slash" : "clock.arrow.circlepath")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(Brand.warning)
+                    .padding(.top, 4)
+            }
+        }
+        .accessibilityIdentifier(WebGuardAccessibilityID.overviewUptimeTrend)
+    }
+
+    private var freshnessMessage: String? {
+        if appState.isOffline {
+            return "Offline: zuletzt synchronisierte Trendwerte"
+        }
+
+        if appState.isMonitoringDataStale {
+            return "Trendwerte möglicherweise veraltet"
+        }
+
+        return nil
+    }
+
+    private func uptimeLabel(_ percentage: Double) -> String {
+        "\(percentage, specifier: "%.1f")%"
+    }
+
+    private func barHeight(_ point: OverviewTrendPoint) -> CGFloat {
+        guard point.hasData, let percentage = point.uptimePercentage else {
+            return 8
+        }
+
+        return max(8, min(100, CGFloat(max(0, percentage)) / 100 * 64))
+    }
+
+    private func pointColor(_ point: OverviewTrendPoint) -> Color {
+        guard point.hasData, let percentage = point.uptimePercentage else {
+            return Brand.mutedText
+        }
+
+        if percentage >= 99 {
+            return Brand.success
+        }
+
+        if percentage >= 95 {
+            return Brand.warning
+        }
+
+        return Brand.danger
+    }
+
+    private func accessibilityLabel(for point: OverviewTrendPoint) -> String {
+        guard point.hasData, let percentage = point.uptimePercentage else {
+            return "\(point.label): keine Daten"
+        }
+
+        return "\(point.label): \(uptimeLabel(percentage)) Uptime"
+    }
+}
+
+private struct DeliveryFailureCard: View {
+    let count: Int
+
+    var body: some View {
+        DashboardSection(
+            title: "Zustellqualität",
+            subtitle: count > 0 ? "Aufmerksamkeit erforderlich" : "Keine fehlgeschlagenen Zustellungen"
+        ) {
+            if count > 0 {
+                NavigationLink {
+                    NotificationsView()
+                } label: {
+                    metricContent
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Öffnet das Benachrichtigungscenter")
+            } else {
+                metricContent
+            }
+        }
+        .accessibilityIdentifier(WebGuardAccessibilityID.overviewDeliveryFailures)
+    }
+
+    private var metricContent: some View {
+        HStack(spacing: 12) {
+            Image(systemName: count > 0 ? "exclamationmark.arrow.triangle.2.circlepath" : "checkmark.circle.fill")
+                .foregroundStyle(count > 0 ? Brand.danger : Brand.success)
+                .frame(width: 38, height: 38)
+                .background((count > 0 ? Brand.danger : Brand.success).opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("\(count)")
+                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .foregroundStyle(count > 0 ? Brand.danger : Brand.success)
+                Text(count == 1 ? "fehlgeschlagene Zustellung" : "fehlgeschlagene Zustellungen")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+            }
+
+            Spacer()
+
+            if count > 0 {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Brand.mutedText)
+            }
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(count == 0 ? "Keine fehlgeschlagenen Zustellungen" : "\(count) fehlgeschlagene Zustellungen")
+    }
+}
+
 private struct AttentionCard: View {
     let items: [OverviewAttention]
     let monitors: [KnownMonitor]
@@ -583,6 +749,21 @@ private struct NextActionCard: View {
     let overview: MobileOverviewPayload
 
     var body: some View {
+        Group {
+            if overview.recommendedAction == "notifications" {
+                NavigationLink {
+                    NotificationsView()
+                } label: {
+                    cardContent
+                }
+                .buttonStyle(.plain)
+            } else {
+                cardContent
+            }
+        }
+    }
+
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
