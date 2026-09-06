@@ -19,6 +19,7 @@ enum Brand {
 
 enum WebGuardAccessibilityID {
     static let mainNavigation = "webguard.navigation.main"
+    static let notificationNavigation = "webguard.navigation.notifications"
     static let overview = "webguard.overview"
     static let overviewDataState = "webguard.overview.data-state"
     static let overviewHealthSummary = "webguard.overview.health-summary"
