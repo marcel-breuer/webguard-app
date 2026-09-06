@@ -50,6 +50,9 @@ enum WebGuardAccessibilityID {
         "webguard.monitorings.detail.\(id)"
     }
 
+    static let monitoringPerformance = "webguard.monitorings.performance"
+    static let monitoringServerHealth = "webguard.monitorings.server-health"
+
     static func notificationRow(_ id: String) -> String {
         "webguard.notifications.row.\(id)"
     }
