@@ -22,6 +22,8 @@ enum WebGuardAccessibilityID {
     static let overview = "webguard.overview"
     static let overviewDataState = "webguard.overview.data-state"
     static let overviewHealthSummary = "webguard.overview.health-summary"
+    static let overviewUptimeTrend = "webguard.overview.uptime-trend"
+    static let overviewDeliveryFailures = "webguard.overview.delivery-failures"
     static let overviewAttention = "webguard.overview.attention"
     static let overviewServiceLandscape = "webguard.overview.service-landscape"
     static let overviewNextAction = "webguard.overview.next-action"
