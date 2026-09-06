@@ -344,6 +344,40 @@ final class ModelsTests: XCTestCase {
         XCTAssertNil(telemetry.thresholds?.loadPerCPU)
     }
 
+    func testMonitoringCalendarPresentationSortsMonthsAndDaysAndOmitsEmptyMonths() {
+        let months = [
+            "2026-10": MobileMonitoringCalendarMonth(
+                days: [
+                    MobileMonitoringCalendarDay(date: "2026-10-02", uptimePercentage: 98),
+                    MobileMonitoringCalendarDay(date: "2026-10-01", uptimePercentage: nil)
+                ],
+                monthlyAverageUptime: 98
+            ),
+            "2026-08": MobileMonitoringCalendarMonth(days: [], monthlyAverageUptime: nil),
+            "2026-09": MobileMonitoringCalendarMonth(
+                days: [MobileMonitoringCalendarDay(date: "2026-09-30", uptimePercentage: 100)],
+                monthlyAverageUptime: 100
+            )
+        ]
+
+        let sortedMonths = MonitoringCalendarPresentation.sortedMonths(months)
+
+        XCTAssertEqual(sortedMonths.map(\.key), ["2026-09", "2026-10"])
+        XCTAssertEqual(
+            MonitoringCalendarPresentation.sortedDays(in: sortedMonths[1].month).map(\.date),
+            ["2026-10-01", "2026-10-02"]
+        )
+    }
+
+    func testMonitoringCalendarPresentationUsesStableUTCDateLabelsAndNoDataState() {
+        XCTAssertEqual(MonitoringCalendarPresentation.monthTitle(for: "2026-03"), "März 2026")
+        XCTAssertEqual(MonitoringCalendarPresentation.dayTitle(for: "2026-03-29"), "Sonntag, 29. März 2026")
+        XCTAssertEqual(MonitoringCalendarPresentation.dayNumber(for: "2026-03-29"), "29")
+        XCTAssertEqual(MonitoringCalendarPresentation.statusLabel(for: nil), "Keine Daten")
+        XCTAssertEqual(MonitoringCalendarPresentation.statusLabel(for: 99.95), "Stabil")
+        XCTAssertEqual(MonitoringCalendarPresentation.statusLabel(for: 94), "Ausfallrisiko")
+    }
+
     func testLocalCachePersistsBoundedMonitoringDetails() throws {
         let suiteName = "webguard.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

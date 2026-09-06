@@ -557,6 +557,70 @@ struct MobileMonitoringCalendarDay: Codable, Identifiable, Equatable {
     }
 }
 
+enum MonitoringCalendarPresentation {
+    static func sortedMonths(_ months: [String: MobileMonitoringCalendarMonth]) -> [(key: String, month: MobileMonitoringCalendarMonth)] {
+        months
+            .filter { !$0.value.days.isEmpty }
+            .sorted { $0.key < $1.key }
+            .map { (key: $0.key, month: $0.value) }
+    }
+
+    static func sortedDays(in month: MobileMonitoringCalendarMonth) -> [MobileMonitoringCalendarDay] {
+        month.days.sorted { $0.date < $1.date }
+    }
+
+    static func dayTitle(for dateKey: String) -> String {
+        guard let date = date(from: dateKey) else {
+            return dateKey
+        }
+
+        return formatter(format: "EEEE, d. MMMM yyyy", locale: Locale(identifier: "de_DE")).string(from: date)
+    }
+
+    static func dayNumber(for dateKey: String) -> String {
+        guard let date = date(from: dateKey) else {
+            return String(dateKey.suffix(2))
+        }
+
+        return formatter(format: "d", locale: Locale(identifier: "de_DE")).string(from: date)
+    }
+
+    static func monthTitle(for monthKey: String) -> String {
+        guard let date = date(from: "\(monthKey)-01") else {
+            return monthKey
+        }
+
+        return formatter(format: "LLLL yyyy", locale: Locale(identifier: "de_DE")).string(from: date)
+    }
+
+    static func statusLabel(for uptimePercentage: Double?) -> String {
+        guard let uptimePercentage else {
+            return "Keine Daten"
+        }
+
+        if uptimePercentage >= 99.9 {
+            return "Stabil"
+        }
+        if uptimePercentage >= 95 {
+            return "Eingeschränkt"
+        }
+        return "Ausfallrisiko"
+    }
+
+    private static func date(from dateKey: String) -> Date? {
+        formatter(format: "yyyy-MM-dd", locale: Locale(identifier: "en_US_POSIX")).date(from: dateKey)
+    }
+
+    private static func formatter(format: String, locale: Locale) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = locale
+        formatter.timeZone = TimeZone(identifier: "UTC") ?? TimeZone.current
+        formatter.dateFormat = format
+        return formatter
+    }
+}
+
 struct MobileMonitoringCapabilities: Codable, Equatable {
     var canManage: Bool
 

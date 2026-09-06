@@ -1053,24 +1053,156 @@ private struct CertificateAndDomainDetail: View {
 
 private struct UptimeCalendarPreview: View {
     let months: [String: MobileMonitoringCalendarMonth]
+    @State private var selectedMonthKey: String?
+    @State private var selectedDayID: String?
+
+    private var sortedMonths: [(key: String, month: MobileMonitoringCalendarMonth)] {
+        MonitoringCalendarPresentation.sortedMonths(months)
+    }
+
+    private var selectedMonth: (key: String, month: MobileMonitoringCalendarMonth)? {
+        guard !sortedMonths.isEmpty else {
+            return nil
+        }
+
+        if let selectedMonthKey,
+           let selected = sortedMonths.first(where: { $0.key == selectedMonthKey }) {
+            return selected
+        }
+
+        return sortedMonths.last
+    }
 
     private var days: [MobileMonitoringCalendarDay] {
-        months.values.flatMap(\.days).suffix(21).reversed()
+        guard let selectedMonth else {
+            return []
+        }
+
+        return MonitoringCalendarPresentation.sortedDays(in: selectedMonth.month)
+    }
+
+    private var selectedDay: MobileMonitoringCalendarDay? {
+        guard let selectedDayID else {
+            return days.last
+        }
+
+        return days.first(where: { $0.id == selectedDayID }) ?? days.last
     }
 
     var body: some View {
-        if days.isEmpty {
-            DetailUnavailableCard(message: "Noch keine Kalendereinträge verfügbar.")
+        if sortedMonths.isEmpty {
+            DetailUnavailableCard(message: "Noch keine Kalendermonate mit Einträgen verfügbar.")
         } else {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
-                ForEach(days) { day in
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(color(for: day.uptimePercentage))
-                        .frame(height: 24)
-                        .accessibilityLabel("\(day.date): \(day.uptimePercentage.map { String(format: "%.2f Prozent verfügbar", $0) } ?? "keine Daten")")
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    Button {
+                        selectMonth(offset: -1)
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!canSelectMonth(offset: -1))
+                    .accessibilityLabel("Vorheriger Monat")
+
+                    Text(selectedMonth.map { MonitoringCalendarPresentation.monthTitle(for: $0.key) } ?? "Kalender")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(Brand.text)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+
+                    Button {
+                        selectMonth(offset: 1)
+                    } label: {
+                        Image(systemName: "chevron.right")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!canSelectMonth(offset: 1))
+                    .accessibilityLabel("Nächster Monat")
+                }
+
+                Text("Nach Monaten sortierte Historie; Auswahl zeigt die Tagesdetails.")
+                    .font(.system(size: 13, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
+                    ForEach(days) { day in
+                        Button {
+                            selectedDayID = day.id
+                        } label: {
+                            VStack(spacing: 5) {
+                                Text(MonitoringCalendarPresentation.dayNumber(for: day.date))
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Brand.text)
+                                Circle()
+                                    .fill(color(for: day.uptimePercentage))
+                                    .frame(width: 10, height: 10)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 54)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(day.id == selectedDay?.id ? Brand.accentSoft : Brand.background)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(day.id == selectedDay?.id ? Brand.accent : Brand.border, lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier(WebGuardAccessibilityID.monitoringUptimeCalendarDay(day.id))
+                        .accessibilityLabel(accessibilityLabel(for: day))
+                    }
+                }
+
+                if let selectedDay {
+                    UptimeCalendarDayDetail(day: selectedDay)
                 }
             }
+            .accessibilityIdentifier(WebGuardAccessibilityID.monitoringUptimeCalendar)
+            .onAppear {
+                synchronizeSelection()
+            }
+            .onChange(of: months) { _, _ in
+                synchronizeSelection()
+            }
+            .onChange(of: selectedMonthKey) { _, _ in
+                selectedDayID = days.last?.id
+            }
         }
+    }
+
+    private func synchronizeSelection() {
+        guard let selectedMonth else {
+            selectedMonthKey = nil
+            selectedDayID = nil
+            return
+        }
+
+        selectedMonthKey = selectedMonth.key
+        selectedDayID = days.last?.id
+    }
+
+    private func canSelectMonth(offset: Int) -> Bool {
+        guard let selectedMonth,
+              let index = sortedMonths.firstIndex(where: { $0.key == selectedMonth.key }) else {
+            return false
+        }
+
+        return sortedMonths.indices.contains(index + offset)
+    }
+
+    private func selectMonth(offset: Int) {
+        guard let selectedMonth,
+              let index = sortedMonths.firstIndex(where: { $0.key == selectedMonth.key }),
+              sortedMonths.indices.contains(index + offset) else {
+            return
+        }
+
+        selectedMonthKey = sortedMonths[index + offset].key
+    }
+
+    private func accessibilityLabel(for day: MobileMonitoringCalendarDay) -> String {
+        let uptime = day.uptimePercentage.map { String(format: "%.2f Prozent verfügbar", $0) } ?? "keine Daten"
+        return "\(MonitoringCalendarPresentation.dayTitle(for: day.date)): \(uptime), \(MonitoringCalendarPresentation.statusLabel(for: day.uptimePercentage))"
     }
 
     private func color(for uptime: Double?) -> Color {
@@ -1078,6 +1210,36 @@ private struct UptimeCalendarPreview: View {
         if uptime >= 99.9 { return Brand.success }
         if uptime >= 95 { return Brand.warning }
         return Brand.danger
+    }
+}
+
+private struct UptimeCalendarDayDetail: View {
+    let day: MobileMonitoringCalendarDay
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(MonitoringCalendarPresentation.dayTitle(for: day.date))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(Brand.text)
+
+            if let uptime = day.uptimePercentage {
+                Text(String(format: "%.2f Prozent verfügbar", uptime))
+                    .font(.system(size: 15, design: .rounded))
+                    .foregroundStyle(Brand.text)
+                Text(MonitoringCalendarPresentation.statusLabel(for: uptime))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+            } else {
+                Label("Keine Daten für diesen Tag", systemImage: "questionmark.circle")
+                    .font(.system(size: 15, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Brand.background)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier(WebGuardAccessibilityID.monitoringUptimeCalendarDay("detail"))
     }
 }
 

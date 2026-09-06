@@ -341,6 +341,11 @@ final class WebGuardTests: XCTestCase {
         XCTAssertEqual(WebGuardAccessibilityID.monitoringDetail("monitor-1"), "webguard.monitorings.detail.monitor-1")
         XCTAssertEqual(WebGuardAccessibilityID.monitoringPerformance, "webguard.monitorings.performance")
         XCTAssertEqual(WebGuardAccessibilityID.monitoringServerHealth, "webguard.monitorings.server-health")
+        XCTAssertEqual(WebGuardAccessibilityID.monitoringUptimeCalendar, "webguard.monitorings.uptime-calendar")
+        XCTAssertEqual(
+            WebGuardAccessibilityID.monitoringUptimeCalendarDay("2026-08-15"),
+            "webguard.monitorings.uptime-calendar-day.2026-08-15"
+        )
         XCTAssertEqual(WebGuardAccessibilityID.notificationRow("event-1"), "webguard.notifications.row.event-1")
         XCTAssertEqual(WebGuardAccessibilityID.pushToggle, "webguard.settings.push-toggle")
         XCTAssertEqual(WebGuardAccessibilityID.signOut, "webguard.settings.sign-out")
