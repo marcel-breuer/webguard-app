@@ -78,6 +78,106 @@ final class WebGuardTests: XCTestCase {
         XCTAssertEqual(requests[4].value(forHTTPHeaderField: "Idempotency-Key"), "request-1")
     }
 
+    func testClientUsesIncidentWorkspaceRoutesAndIdempotencyHeaders() async throws {
+        URLProtocolStub.reset()
+        URLProtocolStub.install { request in
+            let responseBody = #"{"data":{"id":"incident-1","monitoring":{"id":"monitor-1","name":"Example","target":"https://example.test"},"lifecycle":{"state":"open","opened_at":null,"resolved_at":null},"readiness":{"can_publish_update":true,"requires_public_update":false,"update_count":1},"updates":[]}}"#
+            let statusCode = request.httpMethod == "DELETE" ? 204 : 200
+            let response = HTTPURLResponse(url: request.url!, statusCode: statusCode, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+            return (response, Data(responseBody.utf8))
+        }
+        defer { URLProtocolStub.reset() }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let client = WebGuardAPIClient(
+            serverURL: URL(string: "https://webguard.example.test")!,
+            token: "mobile-token",
+            urlSession: URLSession(configuration: configuration)
+        )
+
+        _ = try await client.statusPageIncident(statusPageID: "page-1", incidentID: "incident-1")
+        _ = try await client.updateIncidentMetadata(
+            statusPageID: "page-1",
+            incidentID: "incident-1",
+            payload: MobileIncidentMetadataPayload(incidentType: "dependency", severity: "high", affectedService: "Checkout", customerImpact: "degraded", contributingCategory: "dependency")
+        )
+        _ = try await client.updateIncidentReview(
+            statusPageID: "page-1",
+            incidentID: "incident-1",
+            payload: MobileIncidentReviewPayload(problemDescription: "Upstream unavailable", resolutionDescription: nil)
+        )
+        _ = try await client.createIncidentFollowUp(
+            statusPageID: "page-1",
+            incidentID: "incident-1",
+            payload: MobileIncidentFollowUpPayload(title: "Add fallback", description: nil, assignedUserID: nil, dueAt: nil, status: nil, externalURL: nil, idempotencyKey: nil),
+            idempotencyKey: "follow-up-1"
+        )
+        _ = try await client.updateIncidentFollowUp(
+            statusPageID: "page-1",
+            incidentID: "incident-1",
+            followUpID: "follow-up-1",
+            payload: MobileIncidentFollowUpPayload(title: "Add fallback", description: nil, assignedUserID: nil, dueAt: nil, status: "in_progress", externalURL: nil, idempotencyKey: nil)
+        )
+        try await client.deleteIncidentFollowUp(statusPageID: "page-1", incidentID: "incident-1", followUpID: "follow-up-1")
+        _ = try await client.createIncidentTimelineEvent(
+            statusPageID: "page-1",
+            incidentID: "incident-1",
+            payload: MobileIncidentTimelineEventPayload(title: "Fallback enabled", description: nil, occurredAt: "2026-08-15T09:00:00Z", idempotencyKey: nil),
+            idempotencyKey: "timeline-1"
+        )
+        _ = try await client.updateIncidentTimelineEvent(
+            statusPageID: "page-1",
+            incidentID: "incident-1",
+            eventID: "timeline-1",
+            payload: MobileIncidentTimelineEventPayload(title: "Fallback active", description: nil, occurredAt: "2026-08-15T09:00:00Z", idempotencyKey: nil)
+        )
+        try await client.deleteIncidentTimelineEvent(statusPageID: "page-1", incidentID: "incident-1", eventID: "timeline-1")
+
+        let requests = URLProtocolStub.recordedRequests()
+        XCTAssertEqual(requests.map { $0.url?.path }, [
+            "/api/mobile/status-pages/page-1/incidents/incident-1",
+            "/api/mobile/status-pages/page-1/incidents/incident-1/metadata",
+            "/api/mobile/status-pages/page-1/incidents/incident-1/review",
+            "/api/mobile/status-pages/page-1/incidents/incident-1/follow-ups",
+            "/api/mobile/status-pages/page-1/incidents/incident-1/follow-ups/follow-up-1",
+            "/api/mobile/status-pages/page-1/incidents/incident-1/follow-ups/follow-up-1",
+            "/api/mobile/status-pages/page-1/incidents/incident-1/timeline",
+            "/api/mobile/status-pages/page-1/incidents/incident-1/timeline/timeline-1",
+            "/api/mobile/status-pages/page-1/incidents/incident-1/timeline/timeline-1"
+        ])
+        XCTAssertEqual(requests.map { $0.httpMethod }, ["GET", "PATCH", "PATCH", "POST", "PATCH", "DELETE", "POST", "PATCH", "DELETE"])
+        XCTAssertEqual(requests[3].value(forHTTPHeaderField: "Idempotency-Key"), "follow-up-1")
+        XCTAssertEqual(requests[6].value(forHTTPHeaderField: "Idempotency-Key"), "timeline-1")
+        XCTAssertTrue(String(data: requests[1].httpBody ?? Data(), encoding: .utf8)?.contains("\"severity\":\"high\"") == true)
+    }
+
+    func testClientTreatsIncidentWorkspacePermissionErrorsAsUnauthorized() async throws {
+        URLProtocolStub.reset()
+        URLProtocolStub.install { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 403, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+        defer { URLProtocolStub.reset() }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let client = WebGuardAPIClient(serverURL: URL(string: "https://webguard.example.test")!, urlSession: URLSession(configuration: configuration))
+
+        do {
+            _ = try await client.updateIncidentMetadata(
+                statusPageID: "page-1",
+                incidentID: "incident-1",
+                payload: MobileIncidentMetadataPayload(incidentType: nil, severity: nil, affectedService: nil, customerImpact: nil, contributingCategory: nil)
+            )
+            XCTFail("Expected unauthorized response")
+        } catch WebGuardAPIError.unauthorized {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testClientMapsConsolidatedMonitoringContractAndOwnershipRoutes() async throws {
         URLProtocolStub.reset()
         URLProtocolStub.install { request in
@@ -346,6 +446,9 @@ final class WebGuardTests: XCTestCase {
             WebGuardAccessibilityID.monitoringUptimeCalendarDay("2026-08-15"),
             "webguard.monitorings.uptime-calendar-day.2026-08-15"
         )
+        XCTAssertEqual(WebGuardAccessibilityID.statusPageIncidentMetadata, "webguard.status-pages.incident.metadata")
+        XCTAssertEqual(WebGuardAccessibilityID.statusPageIncidentTimeline, "webguard.status-pages.incident.timeline")
+        XCTAssertEqual(WebGuardAccessibilityID.statusPageIncidentFollowUps, "webguard.status-pages.incident.follow-ups")
         XCTAssertEqual(WebGuardAccessibilityID.notificationRow("event-1"), "webguard.notifications.row.event-1")
         XCTAssertEqual(WebGuardAccessibilityID.pushToggle, "webguard.settings.push-toggle")
         XCTAssertEqual(WebGuardAccessibilityID.signOut, "webguard.settings.sign-out")
@@ -808,8 +911,17 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
     func markAllNotificationsRead() async throws -> Int { try markAllNotificationReadResult.get() }
     func statusPages() async throws -> [MobileStatusPage] { [] }
     func statusPageIncidents(statusPageID: String) async throws -> [MobileIncidentWorkspace] { [] }
+    func statusPageIncident(statusPageID: String, incidentID: String) async throws -> MobileIncidentWorkspace { throw TestError.unexpectedCall }
     func updateStatusPagePublication(id: String, isPublic: Bool) async throws -> MobileStatusPage { throw TestError.unexpectedCall }
     func publishIncidentUpdate(statusPageID: String, incidentID: String, payload: MobileIncidentUpdatePayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace { throw TestError.unexpectedCall }
+    func updateIncidentMetadata(statusPageID: String, incidentID: String, payload: MobileIncidentMetadataPayload) async throws -> MobileIncidentWorkspace { throw TestError.unexpectedCall }
+    func updateIncidentReview(statusPageID: String, incidentID: String, payload: MobileIncidentReviewPayload) async throws -> MobileIncidentWorkspace { throw TestError.unexpectedCall }
+    func createIncidentFollowUp(statusPageID: String, incidentID: String, payload: MobileIncidentFollowUpPayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace { throw TestError.unexpectedCall }
+    func updateIncidentFollowUp(statusPageID: String, incidentID: String, followUpID: String, payload: MobileIncidentFollowUpPayload) async throws -> MobileIncidentWorkspace { throw TestError.unexpectedCall }
+    func deleteIncidentFollowUp(statusPageID: String, incidentID: String, followUpID: String) async throws {}
+    func createIncidentTimelineEvent(statusPageID: String, incidentID: String, payload: MobileIncidentTimelineEventPayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace { throw TestError.unexpectedCall }
+    func updateIncidentTimelineEvent(statusPageID: String, incidentID: String, eventID: String, payload: MobileIncidentTimelineEventPayload) async throws -> MobileIncidentWorkspace { throw TestError.unexpectedCall }
+    func deleteIncidentTimelineEvent(statusPageID: String, incidentID: String, eventID: String) async throws {}
 
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {
         throw TestError.unexpectedCall

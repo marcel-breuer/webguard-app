@@ -378,6 +378,60 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(MonitoringCalendarPresentation.statusLabel(for: 94), "Ausfallrisiko")
     }
 
+    func testIncidentWorkspaceDecodesMetadataTimelineAndFollowUps() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let workspace = try decoder.decode(
+            MobileIncidentWorkspace.self,
+            from: """
+            {
+              "id": "incident-1",
+              "monitoring": {"id":"monitor-1","name":"API","target":"https://example.test"},
+              "lifecycle": {"state":"open","opened_at":"2026-08-15T08:00:00Z","resolved_at":null},
+              "metadata": {
+                "incident_type":"dependency",
+                "severity":"high",
+                "affected_service":"Checkout API",
+                "customer_impact":"degraded",
+                "contributing_category":"dependency",
+                "problem_description":"Upstream unavailable",
+                "resolution_description":null
+              },
+              "readiness": {"can_publish_update":true,"requires_public_update":false,"update_count":1},
+              "updates": [],
+              "follow_ups": [{"id":"follow-up-1","title":"Add fallback","description":null,"status":"open","assigned_user":{"id":"user-1","name":"Marcel"},"due_at":"2026-08-30","completed_at":null,"external_url":null,"updated_at":"2026-08-15T09:00:00Z"}],
+              "timeline": [{"id":null,"title":"Incident opened","description":"Upstream unavailable","occurred_at":"2026-08-15T08:00:00Z","source_type":"lifecycle","can_edit":false}],
+              "custom_timeline_events": [{"id":"timeline-1","title":"Fallback enabled","description":null,"occurred_at":"2026-08-15T09:30:00Z","updated_at":null}],
+              "updated_at":"2026-08-15T09:30:00Z"
+            }
+            """.data(using: .utf8)!
+        )
+
+        XCTAssertEqual(workspace.metadata?.severity, "high")
+        XCTAssertEqual(workspace.followUps?.first?.dueAt, "2026-08-30")
+        XCTAssertNil(workspace.timeline?.first?.id)
+        XCTAssertEqual(workspace.customTimelineEvents?.first?.id, "timeline-1")
+    }
+
+    func testIncidentWorkspaceKeepsOlderPayloadsCompatible() throws {
+        let workspace = try JSONDecoder().decode(
+            MobileIncidentWorkspace.self,
+            from: """
+            {
+              "id":"incident-1",
+              "monitoring":{"id":"monitor-1","name":"API","target":"https://example.test"},
+              "lifecycle":{"state":"open","opened_at":null,"resolved_at":null},
+              "readiness":{"can_publish_update":true,"requires_public_update":true,"update_count":0},
+              "updates":[]
+            }
+            """.data(using: .utf8)!
+        )
+
+        XCTAssertNil(workspace.metadata)
+        XCTAssertNil(workspace.followUps)
+        XCTAssertNil(workspace.timeline)
+    }
+
     func testLocalCachePersistsBoundedMonitoringDetails() throws {
         let suiteName = "webguard.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
