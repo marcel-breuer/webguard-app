@@ -48,7 +48,7 @@ struct MainTabsView: View {
                 NavigationSplitView {
                     List(selection: $selectedDestination) {
                         ForEach(MainDestination.allCases) { destination in
-                            Label(destination.title, systemImage: destination.systemImage)
+                            navigationLabel(for: destination)
                                 .tag(destination as MainDestination?)
                         }
                     }
@@ -67,7 +67,7 @@ struct MainTabsView: View {
                         .tabItem { Label(MainDestination.monitorings.title, systemImage: MainDestination.monitorings.systemImage) }
                         .tag(MainDestination.monitorings as MainDestination?)
                     destinationView(.notifications)
-                        .tabItem { Label(MainDestination.notifications.title, systemImage: MainDestination.notifications.systemImage) }
+                        .tabItem { navigationLabel(for: .notifications) }
                         .tag(MainDestination.notifications as MainDestination?)
                     destinationView(.statusPages)
                         .tabItem { Label(MainDestination.statusPages.title, systemImage: MainDestination.statusPages.systemImage) }
@@ -85,6 +85,32 @@ struct MainTabsView: View {
                 selectedDestination = .monitorings
             }
         }
+    }
+
+    @ViewBuilder
+    private func navigationLabel(for destination: MainDestination) -> some View {
+        if destination == .notifications {
+            if appState.notificationBoardMeta.unreadCount > 0 {
+                Label(destination.title, systemImage: destination.systemImage)
+                    .badge(appState.notificationBoardMeta.unreadCount)
+                    .accessibilityLabel(notificationNavigationAccessibilityLabel)
+                    .accessibilityIdentifier(WebGuardAccessibilityID.notificationNavigation)
+            } else {
+                Label(destination.title, systemImage: destination.systemImage)
+                    .accessibilityLabel(notificationNavigationAccessibilityLabel)
+                    .accessibilityIdentifier(WebGuardAccessibilityID.notificationNavigation)
+            }
+        } else {
+            Label(destination.title, systemImage: destination.systemImage)
+        }
+    }
+
+    private var notificationNavigationAccessibilityLabel: String {
+        let unreadCount = appState.notificationBoardMeta.unreadCount
+        guard unreadCount > 0 else {
+            return MainDestination.notifications.title
+        }
+        return "\(MainDestination.notifications.title), \(unreadCount) ungelesen"
     }
 
     @ViewBuilder

@@ -431,6 +431,7 @@ final class WebGuardTests: XCTestCase {
     }
 
     func testAccessibilityIdentifiersExposeStableStateMatrixTargets() {
+        XCTAssertEqual(WebGuardAccessibilityID.notificationNavigation, "webguard.navigation.notifications")
         XCTAssertEqual(WebGuardAccessibilityID.overview, "webguard.overview")
         XCTAssertEqual(WebGuardAccessibilityID.overviewDataState, "webguard.overview.data-state")
         XCTAssertEqual(WebGuardAccessibilityID.overviewUptimeTrend, "webguard.overview.uptime-trend")
@@ -620,6 +621,142 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(state.isNotificationBoardStale)
     }
 
+    func testNotificationBoardUsesCachedUnreadCountWhenRefreshFails() async {
+        let entry = MobileNotificationBoardEntry(
+            id: "notification-cached",
+            eventType: "incident",
+            severity: "critical",
+            message: "Example is down",
+            occurredAt: Date(),
+            read: false,
+            deliveryStatus: "unknown",
+            monitoring: MobileNotificationBoardMonitoring(id: "monitor-1", name: "Example", target: "https://example.test"),
+            cursor: "cursor-cached"
+        )
+        let cache = InMemoryCacheStore(notificationBoard: CachedNotificationBoard(
+            entries: [entry],
+            meta: MobileNotificationBoardMeta(nextCursor: nil, hasMore: false, unreadCount: 1),
+            fetchedAt: Date().addingTimeInterval(-600)
+        ))
+        let api = MockAPIClient()
+        api.notificationBoardResult = .failure(TestError.requestFailed)
+        let state = AppState(
+            keychain: InMemorySessionStore(session: Fixtures.session()),
+            cache: cache,
+            apnsService: .shared,
+            clientFactory: { _ in api }
+        )
+
+        await state.refreshNotificationBoard()
+
+        XCTAssertEqual(state.notificationBoardMeta.unreadCount, 1)
+        XCTAssertEqual(state.notificationBoard, [entry])
+        XCTAssertTrue(state.isOffline)
+        XCTAssertTrue(state.isNotificationBoardStale)
+    }
+
+    func testPushEventIncrementsNotificationUnreadCount() async {
+        let cache = InMemoryCacheStore(notificationBoard: CachedNotificationBoard(
+            entries: [],
+            meta: MobileNotificationBoardMeta(nextCursor: nil, hasMore: false, unreadCount: 1),
+            fetchedAt: Date()
+        ))
+        let api = MockAPIClient()
+        api.notificationBoardResult = .success(MobileNotificationBoardResponse(
+            data: [],
+            meta: MobileNotificationBoardMeta(nextCursor: nil, hasMore: false, unreadCount: 2)
+        ))
+        let state = AppState(
+            keychain: InMemorySessionStore(session: Fixtures.session()),
+            cache: cache,
+            apnsService: .shared,
+            clientFactory: { _ in api }
+        )
+        let event = PushEvent(
+            id: "push-1",
+            eventType: "incident",
+            severity: "critical",
+            monitoringID: "monitor-1",
+            monitoringName: "Example",
+            monitoringTarget: "https://example.test",
+            occurredAt: Date(),
+            notificationID: "notification-push-1",
+            receivedAt: Date()
+        )
+
+        NotificationCenter.default.post(name: .didReceivePushEvent, object: event)
+        await Task.yield()
+        await Task.yield()
+
+        XCTAssertEqual(state.notificationBoardMeta.unreadCount, 2)
+        XCTAssertEqual(state.notificationBoard.first?.id, "local-notification-push-1")
+    }
+
+    func testMarkingNotificationReadRollsBackUnreadCountWhenRequestFails() async {
+        let entry = MobileNotificationBoardEntry(
+            id: "notification-rollback",
+            eventType: "incident",
+            severity: "critical",
+            message: "Example is down",
+            occurredAt: Date(),
+            read: false,
+            deliveryStatus: "unknown",
+            monitoring: MobileNotificationBoardMonitoring(id: "monitor-1", name: "Example", target: "https://example.test"),
+            cursor: "cursor-rollback"
+        )
+        let cache = InMemoryCacheStore(notificationBoard: CachedNotificationBoard(
+            entries: [entry],
+            meta: MobileNotificationBoardMeta(nextCursor: nil, hasMore: false, unreadCount: 1),
+            fetchedAt: Date()
+        ))
+        let api = MockAPIClient()
+        api.markNotificationReadResult = .failure(TestError.requestFailed)
+        let state = AppState(
+            keychain: InMemorySessionStore(session: Fixtures.session()),
+            cache: cache,
+            apnsService: .shared,
+            clientFactory: { _ in api }
+        )
+
+        await state.markNotificationRead(entry)
+
+        XCTAssertEqual(state.notificationBoard, [entry])
+        XCTAssertEqual(state.notificationBoardMeta.unreadCount, 1)
+        XCTAssertNotNil(state.errorMessage)
+    }
+
+    func testMarkingAllNotificationsReadHidesUnreadCount() async {
+        let entry = MobileNotificationBoardEntry(
+            id: "notification-all",
+            eventType: "incident",
+            severity: "critical",
+            message: "Example is down",
+            occurredAt: Date(),
+            read: false,
+            deliveryStatus: "unknown",
+            monitoring: MobileNotificationBoardMonitoring(id: "monitor-1", name: "Example", target: "https://example.test"),
+            cursor: "cursor-all"
+        )
+        let cache = InMemoryCacheStore(notificationBoard: CachedNotificationBoard(
+            entries: [entry],
+            meta: MobileNotificationBoardMeta(nextCursor: nil, hasMore: false, unreadCount: 1),
+            fetchedAt: Date()
+        ))
+        let api = MockAPIClient()
+        api.markAllNotificationReadResult = .success(0)
+        let state = AppState(
+            keychain: InMemorySessionStore(session: Fixtures.session()),
+            cache: cache,
+            apnsService: .shared,
+            clientFactory: { _ in api }
+        )
+
+        await state.markAllNotificationsRead()
+
+        XCTAssertEqual(state.notificationBoardMeta.unreadCount, 0)
+        XCTAssertTrue(state.notificationBoard.allSatisfy(\.read))
+    }
+
     func testUnauthorizedOverviewClearsSessionCachesAndWidgetData() async {
         let monitor = Fixtures.monitor(status: "down")
         let cache = InMemoryCacheStore(
@@ -795,13 +932,15 @@ private final class InMemoryCacheStore: CacheStore {
         events: [PushEvent] = [],
         overview: MobileOverviewPayload? = nil,
         notificationPreferences: [String: MonitoringNotificationPreference] = [:],
-        lastRefreshAt: Date? = nil
+        lastRefreshAt: Date? = nil,
+        notificationBoard: CachedNotificationBoard? = nil
     ) {
         self.monitors = monitors
         self.events = events
         self.overview = overview
         self.notificationPreferences = notificationPreferences
         self.lastRefreshAt = lastRefreshAt
+        self.notificationBoard = notificationBoard
     }
 
     func activate(for userID: String?) {}
@@ -843,6 +982,7 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
     var overviewResult: Result<MobileOverviewPayload, Error> = .success(.fallback(monitors: [], events: []))
     var detailResult: Result<MobileMonitoringDetailResponse, Error> = .failure(TestError.unexpectedCall)
     var notificationBoardResult: Result<MobileNotificationBoardResponse, Error> = .failure(TestError.unexpectedCall)
+    var markNotificationReadResult: Result<Void, Error> = .success(())
     var markAllNotificationReadResult: Result<Int, Error> = .success(0)
     var logoutCount = 0
 
@@ -907,7 +1047,7 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
     func setRecurringMaintenanceEnabled(id: String, enabled: Bool) async throws -> MobileMaintenanceWindow { throw TestError.unexpectedCall }
     func cancelOneOffMaintenance(monitoringID: String) async throws { throw TestError.unexpectedCall }
     func notificationBoard(cursor: String?, eventType: String?, showRead: Bool) async throws -> MobileNotificationBoardResponse { try notificationBoardResult.get() }
-    func markNotificationRead(id: String) async throws {}
+    func markNotificationRead(id: String) async throws { try markNotificationReadResult.get() }
     func markAllNotificationsRead() async throws -> Int { try markAllNotificationReadResult.get() }
     func statusPages() async throws -> [MobileStatusPage] { [] }
     func statusPageIncidents(statusPageID: String) async throws -> [MobileIncidentWorkspace] { [] }
