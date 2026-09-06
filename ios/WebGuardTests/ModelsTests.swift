@@ -301,6 +301,47 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(detail.data.responseTimes.data.first?.avg, 120)
         XCTAssertNil(detail.data.incidents.first?.upAt)
         XCTAssertEqual(detail.meta.sections["domain"]?.state, .unavailable)
+        XCTAssertNil(detail.data.serverHealthTelemetry)
+    }
+
+    func testServerHealthTelemetryDecodesNullableSamplesAndThresholds() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let telemetry = try decoder.decode(
+            MobileServerHealthTelemetry.self,
+            from: """
+            {
+              "data": [
+                {
+                  "checked_at": "2026-08-15T08:00:00Z",
+                  "cpu_usage_percent": 72.5,
+                  "ram_usage_percent": null,
+                  "storage_usage_percent": 91.0,
+                  "normalized_load": 1.2
+                },
+                {
+                  "checked_at": "2026-08-15T09:00:00Z",
+                  "cpu_usage_percent": null,
+                  "ram_usage_percent": 88.0,
+                  "storage_usage_percent": null,
+                  "normalized_load": null
+                }
+              ],
+              "thresholds": {
+                "cpu_usage_percent": 90,
+                "ram_usage_percent": 90,
+                "storage_usage_percent": 90,
+                "load_per_cpu": null
+              }
+            }
+            """.data(using: .utf8)!
+        )
+
+        XCTAssertEqual(telemetry.data.count, 2)
+        XCTAssertEqual(telemetry.data.first?.cpuUsagePercent, 72.5)
+        XCTAssertNil(telemetry.data.first?.ramUsagePercent)
+        XCTAssertEqual(telemetry.data.last?.ramUsagePercent, 88)
+        XCTAssertNil(telemetry.thresholds?.loadPerCPU)
     }
 
     func testLocalCachePersistsBoundedMonitoringDetails() throws {

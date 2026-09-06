@@ -578,6 +578,17 @@ struct MonitoringDetailView: View {
             .disabled(isRefreshing)
         }
 
+        if (detail.data.summary.type ?? monitor.type)?.lowercased() == "server_health" {
+            ServerHealthTelemetryCard(
+                telemetry: detail.data.serverHealthTelemetry,
+                section: detail.meta.sections["server_health_telemetry"]
+            )
+        }
+
+        if let performance = detail.data.summary.performance {
+            PerformanceStatusCard(performance: performance, section: detail.meta.sections["performance"])
+        }
+
         DetailSectionCard(title: "Verfügbarkeit (30 Tage)", section: detail.meta.sections["availability"]) {
             if detail.data.availability.hasData {
                 HStack(spacing: 10) {
@@ -679,6 +690,178 @@ struct MonitoringDetailView: View {
         }
         existing.meta = next.meta
         detail = existing
+    }
+}
+
+private struct PerformanceStatusCard: View {
+    let performance: MobileMonitoringPerformance
+    let section: MobileMonitoringDetailSection?
+
+    var body: some View {
+        DetailSectionCard(title: "Performance", section: resolvedSection) {
+            HStack(spacing: 10) {
+                Image(systemName: statusIcon)
+                    .foregroundStyle(statusColor)
+                    .frame(width: 38, height: 38)
+                    .background(statusColor.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(statusTitle)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(Brand.text)
+                    Text(statusDescription)
+                        .font(.system(size: 13, design: .rounded))
+                        .foregroundStyle(Brand.mutedText)
+                }
+            }
+
+            if let consecutiveBreaches = performance.consecutiveBreaches {
+                DetailField(label: "Aufeinanderfolgende Verletzungen", value: "\(consecutiveBreaches)")
+            }
+            if let degradedAt = performance.degradedAt {
+                DetailField(label: "Degradiert seit", value: degradedAt.formatted(date: .abbreviated, time: .shortened))
+            }
+        }
+        .accessibilityIdentifier(WebGuardAccessibilityID.monitoringPerformance)
+    }
+
+    private var resolvedSection: MobileMonitoringDetailSection? {
+        section ?? MobileMonitoringDetailSection(state: .current, generatedAt: performance.degradedAt ?? Date())
+    }
+
+    private var statusIcon: String {
+        switch performance.status?.lowercased() {
+        case "degraded": return "speedometer"
+        case "healthy", "recovered": return "checkmark.circle.fill"
+        default: return "questionmark.circle"
+        }
+    }
+
+    private var statusTitle: String {
+        switch performance.status?.lowercased() {
+        case "degraded": return "Performance beeinträchtigt"
+        case "healthy", "recovered": return "Performance normal"
+        default: return "Performance-Status unbekannt"
+        }
+    }
+
+    private var statusDescription: String {
+        switch performance.status?.lowercased() {
+        case "degraded": return "Grenzwerte werden aktuell überschritten."
+        case "healthy", "recovered": return "Keine aktuelle Degradation erkannt."
+        default: return "Der Server hat keinen auswertbaren Status geliefert."
+        }
+    }
+
+    private var statusColor: Color {
+        switch performance.status?.lowercased() {
+        case "degraded": return Brand.danger
+        case "healthy", "recovered": return Brand.success
+        default: return Brand.mutedText
+        }
+    }
+}
+
+private struct ServerHealthTelemetryCard: View {
+    let telemetry: MobileServerHealthTelemetry?
+    let section: MobileMonitoringDetailSection?
+
+    var body: some View {
+        DetailSectionCard(title: "Server-Health", section: resolvedSection) {
+            if let telemetry {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 130))], alignment: .leading, spacing: 14) {
+                    ServerHealthMetric(
+                        label: "CPU",
+                        value: latestSample?.cpuUsagePercent,
+                        threshold: telemetry.thresholds?.cpuUsagePercent,
+                        unit: "%"
+                    )
+                    ServerHealthMetric(
+                        label: "RAM",
+                        value: latestSample?.ramUsagePercent,
+                        threshold: telemetry.thresholds?.ramUsagePercent,
+                        unit: "%"
+                    )
+                    ServerHealthMetric(
+                        label: "Storage",
+                        value: latestSample?.storageUsagePercent,
+                        threshold: telemetry.thresholds?.storageUsagePercent,
+                        unit: "%"
+                    )
+                    ServerHealthMetric(
+                        label: "Load / CPU",
+                        value: latestSample?.normalizedLoad,
+                        threshold: telemetry.thresholds?.loadPerCPU,
+                        unit: ""
+                    )
+                }
+
+                if let checkedAt = latestSample?.checkedAt {
+                    DetailField(label: "Letzte Messung", value: checkedAt.formatted(date: .abbreviated, time: .shortened))
+                }
+            } else {
+                DetailUnavailableCard(message: "Für dieses Server-Monitoring liegen keine Health-Messwerte vor.")
+            }
+        }
+        .accessibilityIdentifier(WebGuardAccessibilityID.monitoringServerHealth)
+    }
+
+    private var resolvedSection: MobileMonitoringDetailSection? {
+        section ?? telemetry.map { _ in
+            MobileMonitoringDetailSection(state: .current, generatedAt: latestSample?.checkedAt ?? Date())
+        }
+    }
+
+    private var latestSample: MobileServerHealthSample? {
+        telemetry?.data.max { $0.checkedAt < $1.checkedAt }
+    }
+}
+
+private struct ServerHealthMetric: View {
+    let label: String
+    let value: Double?
+    let threshold: Double?
+    let unit: String
+
+    private var isWarning: Bool? {
+        guard let value, let threshold else { return nil }
+        return value >= threshold
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Text(label)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(Brand.mutedText)
+                if isWarning == true {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(Brand.danger)
+                }
+            }
+            Text(value.map { metricValue($0) } ?? "Keine Daten")
+                .font(.system(size: 18, weight: .black, design: .rounded))
+                .foregroundStyle(isWarning == true ? Brand.danger : value == nil ? Brand.mutedText : Brand.text)
+            Text(threshold.map { "Schwelle \(metricValue($0))" } ?? "Schwelle nicht verfügbar")
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(Brand.mutedText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private func metricValue(_ value: Double) -> String {
+        "\(value, specifier: "%.1f")\(unit)"
+    }
+
+    private var accessibilityText: String {
+        let current = value.map { metricValue($0) } ?? "keine Daten"
+        let limit = threshold.map { metricValue($0) } ?? "nicht verfügbar"
+        let state = isWarning == true ? ", Warnung" : ""
+        return "\(label): \(current), Schwelle \(limit)\(state)"
     }
 }
 

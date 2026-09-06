@@ -301,6 +301,7 @@ struct MobileMonitoringDetailPayload: Codable, Equatable {
     var incidents: [MobileMonitoringIncident]
     var heatmap: [MobileMonitoringHeatmapPoint]
     var maintenance: MobileMonitoringMaintenance
+    var serverHealthTelemetry: MobileServerHealthTelemetry?
     var ssl: MobileMonitoringSsl?
     var domain: MobileMonitoringDomain?
     var uptimeCalendar: [String: MobileMonitoringCalendarMonth]
@@ -314,10 +315,48 @@ struct MobileMonitoringDetailPayload: Codable, Equatable {
         case incidents
         case heatmap
         case maintenance
+        case serverHealthTelemetry = "server_health_telemetry"
         case ssl
         case domain
         case uptimeCalendar = "uptime_calendar"
         case capabilities
+    }
+}
+
+struct MobileServerHealthTelemetry: Codable, Equatable {
+    var data: [MobileServerHealthSample]
+    var thresholds: MobileServerHealthThresholds?
+}
+
+struct MobileServerHealthSample: Codable, Equatable, Identifiable {
+    var checkedAt: Date
+    var cpuUsagePercent: Double?
+    var ramUsagePercent: Double?
+    var storageUsagePercent: Double?
+    var normalizedLoad: Double?
+
+    var id: Date { checkedAt }
+
+    enum CodingKeys: String, CodingKey {
+        case checkedAt = "checked_at"
+        case cpuUsagePercent = "cpu_usage_percent"
+        case ramUsagePercent = "ram_usage_percent"
+        case storageUsagePercent = "storage_usage_percent"
+        case normalizedLoad = "normalized_load"
+    }
+}
+
+struct MobileServerHealthThresholds: Codable, Equatable {
+    var cpuUsagePercent: Double?
+    var ramUsagePercent: Double?
+    var storageUsagePercent: Double?
+    var loadPerCPU: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case cpuUsagePercent = "cpu_usage_percent"
+        case ramUsagePercent = "ram_usage_percent"
+        case storageUsagePercent = "storage_usage_percent"
+        case loadPerCPU = "load_per_cpu"
     }
 }
 

@@ -339,6 +339,8 @@ final class WebGuardTests: XCTestCase {
         XCTAssertEqual(WebGuardAccessibilityID.service("monitor-1"), "webguard.overview.service.monitor-1")
         XCTAssertEqual(WebGuardAccessibilityID.attention("incident-1"), "webguard.overview.attention.incident-1")
         XCTAssertEqual(WebGuardAccessibilityID.monitoringDetail("monitor-1"), "webguard.monitorings.detail.monitor-1")
+        XCTAssertEqual(WebGuardAccessibilityID.monitoringPerformance, "webguard.monitorings.performance")
+        XCTAssertEqual(WebGuardAccessibilityID.monitoringServerHealth, "webguard.monitorings.server-health")
         XCTAssertEqual(WebGuardAccessibilityID.notificationRow("event-1"), "webguard.notifications.row.event-1")
         XCTAssertEqual(WebGuardAccessibilityID.pushToggle, "webguard.settings.push-toggle")
         XCTAssertEqual(WebGuardAccessibilityID.signOut, "webguard.settings.sign-out")
