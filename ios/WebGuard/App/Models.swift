@@ -1139,12 +1139,165 @@ struct MobileStatusPagePublication: Codable, Equatable { var isPublic: Bool; var
 struct MobileIncidentWorkspaceListResponse: Decodable { var data: [MobileIncidentWorkspace] }
 struct MobileIncidentWorkspaceResponse: Decodable { var data: MobileIncidentWorkspace }
 struct MobileIncidentWorkspace: Codable, Identifiable, Equatable {
-    var id: String; var monitoring: MobileNotificationBoardMonitoring; var lifecycle: MobileIncidentLifecycle; var readiness: MobileIncidentReadiness; var updates: [MobileIncidentUpdate]
+    var id: String
+    var monitoring: MobileNotificationBoardMonitoring
+    var lifecycle: MobileIncidentLifecycle
+    var metadata: MobileIncidentMetadata?
+    var readiness: MobileIncidentReadiness
+    var updates: [MobileIncidentUpdate]
+    var followUps: [MobileIncidentFollowUp]?
+    var timeline: [MobileIncidentTimelineEntry]?
+    var customTimelineEvents: [MobileIncidentCustomTimelineEvent]?
+    var updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, monitoring, lifecycle, metadata, readiness, updates
+        case followUps = "follow_ups"
+        case timeline
+        case customTimelineEvents = "custom_timeline_events"
+        case updatedAt = "updated_at"
+    }
 }
 struct MobileIncidentLifecycle: Codable, Equatable { var state: String; var openedAt: Date?; var resolvedAt: Date?; enum CodingKeys: String, CodingKey { case state; case openedAt = "opened_at"; case resolvedAt = "resolved_at" } }
+struct MobileIncidentMetadata: Codable, Equatable {
+    var incidentType: String?
+    var severity: String?
+    var affectedService: String?
+    var customerImpact: String?
+    var contributingCategory: String?
+    var problemDescription: String?
+    var resolutionDescription: String?
+
+    enum CodingKeys: String, CodingKey {
+        case incidentType = "incident_type"
+        case severity
+        case affectedService = "affected_service"
+        case customerImpact = "customer_impact"
+        case contributingCategory = "contributing_category"
+        case problemDescription = "problem_description"
+        case resolutionDescription = "resolution_description"
+    }
+}
 struct MobileIncidentReadiness: Codable, Equatable { var canPublishUpdate: Bool; var requiresPublicUpdate: Bool; var updateCount: Int; enum CodingKeys: String, CodingKey { case canPublishUpdate = "can_publish_update"; case requiresPublicUpdate = "requires_public_update"; case updateCount = "update_count" } }
 struct MobileIncidentUpdate: Codable, Identifiable, Equatable { var id: String; var status: String; var message: String; var publishedAt: Date?; enum CodingKeys: String, CodingKey { case id, status, message; case publishedAt = "published_at" } }
 struct MobileIncidentUpdatePayload: Encodable { var status: String; var message: String }
+struct MobileIncidentAssignedUser: Codable, Equatable {
+    var id: String
+    var name: String
+}
+
+struct MobileIncidentFollowUp: Codable, Identifiable, Equatable {
+    var id: String
+    var title: String
+    var description: String?
+    var status: String
+    var assignedUser: MobileIncidentAssignedUser?
+    var dueAt: String?
+    var completedAt: Date?
+    var externalURL: String?
+    var updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, status
+        case assignedUser = "assigned_user"
+        case dueAt = "due_at"
+        case completedAt = "completed_at"
+        case externalURL = "external_url"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct MobileIncidentTimelineEntry: Codable, Identifiable, Equatable {
+    var id: String?
+    var title: String
+    var description: String?
+    var occurredAt: Date
+    var sourceType: String
+    var canEdit: Bool
+
+    var identity: String {
+        id ?? "\(sourceType)-\(occurredAt.timeIntervalSince1970)-\(title)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description
+        case occurredAt = "occurred_at"
+        case sourceType = "source_type"
+        case canEdit = "can_edit"
+    }
+}
+
+struct MobileIncidentCustomTimelineEvent: Codable, Identifiable, Equatable {
+    var id: String
+    var title: String
+    var description: String?
+    var occurredAt: Date
+    var updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description
+        case occurredAt = "occurred_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct MobileIncidentMetadataPayload: Encodable {
+    var incidentType: String?
+    var severity: String?
+    var affectedService: String?
+    var customerImpact: String?
+    var contributingCategory: String?
+
+    enum CodingKeys: String, CodingKey {
+        case incidentType = "incident_type"
+        case severity
+        case affectedService = "affected_service"
+        case customerImpact = "customer_impact"
+        case contributingCategory = "contributing_category"
+    }
+}
+
+struct MobileIncidentReviewPayload: Encodable {
+    var problemDescription: String?
+    var resolutionDescription: String?
+
+    enum CodingKeys: String, CodingKey {
+        case problemDescription = "problem_description"
+        case resolutionDescription = "resolution_description"
+    }
+}
+
+struct MobileIncidentFollowUpPayload: Encodable {
+    var title: String
+    var description: String?
+    var assignedUserID: String?
+    var dueAt: String?
+    var status: String?
+    var externalURL: String?
+    var idempotencyKey: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title, description
+        case assignedUserID = "assigned_user_id"
+        case dueAt = "due_at"
+        case status
+        case externalURL = "external_url"
+        case idempotencyKey = "idempotency_key"
+    }
+}
+
+struct MobileIncidentTimelineEventPayload: Encodable {
+    var title: String
+    var description: String?
+    var occurredAt: String
+    var idempotencyKey: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title, description
+        case occurredAt = "occurred_at"
+        case idempotencyKey = "idempotency_key"
+    }
+}
 
 struct CachedNotificationBoard: Codable, Equatable {
     var entries: [MobileNotificationBoardEntry]

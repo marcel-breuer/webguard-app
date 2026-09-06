@@ -53,6 +53,9 @@ enum WebGuardAccessibilityID {
     static let monitoringPerformance = "webguard.monitorings.performance"
     static let monitoringServerHealth = "webguard.monitorings.server-health"
     static let monitoringUptimeCalendar = "webguard.monitorings.uptime-calendar"
+    static let statusPageIncidentMetadata = "webguard.status-pages.incident.metadata"
+    static let statusPageIncidentTimeline = "webguard.status-pages.incident.timeline"
+    static let statusPageIncidentFollowUps = "webguard.status-pages.incident.follow-ups"
 
     static func notificationRow(_ id: String) -> String {
         "webguard.notifications.row.\(id)"

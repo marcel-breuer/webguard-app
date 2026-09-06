@@ -50,8 +50,17 @@ protocol WebGuardAPIClientProtocol {
     func markAllNotificationsRead() async throws -> Int
     func statusPages() async throws -> [MobileStatusPage]
     func statusPageIncidents(statusPageID: String) async throws -> [MobileIncidentWorkspace]
+    func statusPageIncident(statusPageID: String, incidentID: String) async throws -> MobileIncidentWorkspace
     func updateStatusPagePublication(id: String, isPublic: Bool) async throws -> MobileStatusPage
     func publishIncidentUpdate(statusPageID: String, incidentID: String, payload: MobileIncidentUpdatePayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace
+    func updateIncidentMetadata(statusPageID: String, incidentID: String, payload: MobileIncidentMetadataPayload) async throws -> MobileIncidentWorkspace
+    func updateIncidentReview(statusPageID: String, incidentID: String, payload: MobileIncidentReviewPayload) async throws -> MobileIncidentWorkspace
+    func createIncidentFollowUp(statusPageID: String, incidentID: String, payload: MobileIncidentFollowUpPayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace
+    func updateIncidentFollowUp(statusPageID: String, incidentID: String, followUpID: String, payload: MobileIncidentFollowUpPayload) async throws -> MobileIncidentWorkspace
+    func deleteIncidentFollowUp(statusPageID: String, incidentID: String, followUpID: String) async throws
+    func createIncidentTimelineEvent(statusPageID: String, incidentID: String, payload: MobileIncidentTimelineEventPayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace
+    func updateIncidentTimelineEvent(statusPageID: String, incidentID: String, eventID: String, payload: MobileIncidentTimelineEventPayload) async throws -> MobileIncidentWorkspace
+    func deleteIncidentTimelineEvent(statusPageID: String, incidentID: String, eventID: String) async throws
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference
     func updateMonitoringNotificationPreference(
         monitoringID: String,
@@ -263,6 +272,10 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         let response: MobileIncidentWorkspaceListResponse = try await request("/mobile/status-pages/\(statusPageID)/incidents?state=open&per_page=100", method: "GET")
         return response.data
     }
+    func statusPageIncident(statusPageID: String, incidentID: String) async throws -> MobileIncidentWorkspace {
+        let response: MobileIncidentWorkspaceResponse = try await request("/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)", method: "GET")
+        return response.data
+    }
     func updateStatusPagePublication(id: String, isPublic: Bool) async throws -> MobileStatusPage {
         let response: MobileStatusPageResponse = try await request("/mobile/status-pages/\(id)/publication", method: "PATCH", body: ["is_public": isPublic])
         return response.data
@@ -270,6 +283,64 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
     func publishIncidentUpdate(statusPageID: String, incidentID: String, payload: MobileIncidentUpdatePayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace {
         let response: MobileIncidentWorkspaceResponse = try await performRequest("/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/updates", apiPrefix: "/api", method: "POST", bodyData: encoder.encode(payload), headers: ["Idempotency-Key": idempotencyKey])
         return response.data
+    }
+    func updateIncidentMetadata(statusPageID: String, incidentID: String, payload: MobileIncidentMetadataPayload) async throws -> MobileIncidentWorkspace {
+        let response: MobileIncidentWorkspaceResponse = try await request(
+            "/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/metadata",
+            method: "PATCH",
+            body: payload
+        )
+        return response.data
+    }
+    func updateIncidentReview(statusPageID: String, incidentID: String, payload: MobileIncidentReviewPayload) async throws -> MobileIncidentWorkspace {
+        let response: MobileIncidentWorkspaceResponse = try await request(
+            "/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/review",
+            method: "PATCH",
+            body: payload
+        )
+        return response.data
+    }
+    func createIncidentFollowUp(statusPageID: String, incidentID: String, payload: MobileIncidentFollowUpPayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace {
+        let response: MobileIncidentWorkspaceResponse = try await performRequest(
+            "/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/follow-ups",
+            apiPrefix: "/api",
+            method: "POST",
+            bodyData: encoder.encode(payload),
+            headers: ["Idempotency-Key": idempotencyKey]
+        )
+        return response.data
+    }
+    func updateIncidentFollowUp(statusPageID: String, incidentID: String, followUpID: String, payload: MobileIncidentFollowUpPayload) async throws -> MobileIncidentWorkspace {
+        let response: MobileIncidentWorkspaceResponse = try await request(
+            "/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/follow-ups/\(followUpID)",
+            method: "PATCH",
+            body: payload
+        )
+        return response.data
+    }
+    func deleteIncidentFollowUp(statusPageID: String, incidentID: String, followUpID: String) async throws {
+        try await requestNoResponse("/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/follow-ups/\(followUpID)", method: "DELETE")
+    }
+    func createIncidentTimelineEvent(statusPageID: String, incidentID: String, payload: MobileIncidentTimelineEventPayload, idempotencyKey: String) async throws -> MobileIncidentWorkspace {
+        let response: MobileIncidentWorkspaceResponse = try await performRequest(
+            "/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/timeline",
+            apiPrefix: "/api",
+            method: "POST",
+            bodyData: encoder.encode(payload),
+            headers: ["Idempotency-Key": idempotencyKey]
+        )
+        return response.data
+    }
+    func updateIncidentTimelineEvent(statusPageID: String, incidentID: String, eventID: String, payload: MobileIncidentTimelineEventPayload) async throws -> MobileIncidentWorkspace {
+        let response: MobileIncidentWorkspaceResponse = try await request(
+            "/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/timeline/\(eventID)",
+            method: "PATCH",
+            body: payload
+        )
+        return response.data
+    }
+    func deleteIncidentTimelineEvent(statusPageID: String, incidentID: String, eventID: String) async throws {
+        try await requestNoResponse("/mobile/status-pages/\(statusPageID)/incidents/\(incidentID)/timeline/\(eventID)", method: "DELETE")
     }
 
     func monitoringNotificationPreference(monitorID: String) async throws -> MonitoringNotificationPreference {

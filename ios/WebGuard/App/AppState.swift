@@ -589,6 +589,127 @@ final class AppState: ObservableObject {
         catch { show(error) }
     }
 
+    func refreshStatusPageIncident(_ statusPageID: String, incidentID: String) async {
+        guard let client = apiClient else { return }
+        do {
+            replaceStatusPageIncident(try await client.statusPageIncident(statusPageID: statusPageID, incidentID: incidentID), statusPageID: statusPageID)
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch {
+            isOffline = true
+            show(error)
+        }
+    }
+
+    func updateStatusPageIncidentMetadata(statusPageID: String, incidentID: String, payload: MobileIncidentMetadataPayload) async {
+        guard let client = apiClient else { return }
+        do {
+            replaceStatusPageIncident(try await client.updateIncidentMetadata(statusPageID: statusPageID, incidentID: incidentID, payload: payload), statusPageID: statusPageID)
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+    }
+
+    func updateStatusPageIncidentReview(statusPageID: String, incidentID: String, payload: MobileIncidentReviewPayload) async {
+        guard let client = apiClient else { return }
+        do {
+            replaceStatusPageIncident(try await client.updateIncidentReview(statusPageID: statusPageID, incidentID: incidentID, payload: payload), statusPageID: statusPageID)
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+    }
+
+    func createStatusPageIncidentFollowUp(statusPageID: String, incidentID: String, payload: MobileIncidentFollowUpPayload) async {
+        guard let client = apiClient else { return }
+        do {
+            replaceStatusPageIncident(
+                try await client.createIncidentFollowUp(statusPageID: statusPageID, incidentID: incidentID, payload: payload, idempotencyKey: UUID().uuidString),
+                statusPageID: statusPageID
+            )
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+    }
+
+    func updateStatusPageIncidentFollowUp(statusPageID: String, incidentID: String, followUpID: String, payload: MobileIncidentFollowUpPayload) async {
+        guard let client = apiClient else { return }
+        do {
+            replaceStatusPageIncident(
+                try await client.updateIncidentFollowUp(statusPageID: statusPageID, incidentID: incidentID, followUpID: followUpID, payload: payload),
+                statusPageID: statusPageID
+            )
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+    }
+
+    func deleteStatusPageIncidentFollowUp(statusPageID: String, incidentID: String, followUpID: String) async {
+        guard let client = apiClient else { return }
+        do {
+            try await client.deleteIncidentFollowUp(statusPageID: statusPageID, incidentID: incidentID, followUpID: followUpID)
+            await refreshStatusPageIncident(statusPageID, incidentID: incidentID)
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+    }
+
+    func createStatusPageIncidentTimelineEvent(statusPageID: String, incidentID: String, payload: MobileIncidentTimelineEventPayload) async {
+        guard let client = apiClient else { return }
+        do {
+            replaceStatusPageIncident(
+                try await client.createIncidentTimelineEvent(statusPageID: statusPageID, incidentID: incidentID, payload: payload, idempotencyKey: UUID().uuidString),
+                statusPageID: statusPageID
+            )
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+    }
+
+    func updateStatusPageIncidentTimelineEvent(statusPageID: String, incidentID: String, eventID: String, payload: MobileIncidentTimelineEventPayload) async {
+        guard let client = apiClient else { return }
+        do {
+            replaceStatusPageIncident(
+                try await client.updateIncidentTimelineEvent(statusPageID: statusPageID, incidentID: incidentID, eventID: eventID, payload: payload),
+                statusPageID: statusPageID
+            )
+            isOffline = false
+            updateLastAPICallAt()
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+    }
+
+    func deleteStatusPageIncidentTimelineEvent(statusPageID: String, incidentID: String, eventID: String) async {
+        guard let client = apiClient else { return }
+        do {
+            try await client.deleteIncidentTimelineEvent(statusPageID: statusPageID, incidentID: incidentID, eventID: eventID)
+            await refreshStatusPageIncident(statusPageID, incidentID: incidentID)
+        } catch WebGuardAPIError.unauthorized {
+            await signOut()
+            show(WebGuardAPIError.unauthorized)
+        } catch { show(error) }
+    }
+
     func setStatusPagePublication(_ statusPage: MobileStatusPage, isPublic: Bool) async {
         guard let client = apiClient, statusPage.publication.canChange else { return }
         do { let updated = try await client.updateStatusPagePublication(id: statusPage.id, isPublic: isPublic); statusPages = statusPages.map { $0.id == updated.id ? updated : $0 }; updateLastAPICallAt() }
@@ -602,6 +723,10 @@ final class AppState: ObservableObject {
             statusPageIncidents[statusPageID] = (statusPageIncidents[statusPageID] ?? []).map { $0.id == updated.id ? updated : $0 }
             updateLastAPICallAt()
         } catch { show(error) }
+    }
+
+    private func replaceStatusPageIncident(_ incident: MobileIncidentWorkspace, statusPageID: String) {
+        statusPageIncidents[statusPageID] = (statusPageIncidents[statusPageID] ?? []).map { $0.id == incident.id ? incident : $0 }
     }
 
     func refreshNotificationBoard() async {
