@@ -51,7 +51,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(decoded, overview)
     }
 
-    func testMonitoringFixtureDecodesMaintenanceAndStatusPayloads() throws {
+    func testMonitoringFixtureDecodesConsolidatedCoreMonitoringPayload() throws {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let listJSON = """
@@ -61,10 +61,22 @@ final class ModelsTests: XCTestCase {
               "id": "monitor-1",
               "name": "API",
               "target": "https://example.test",
-              "status": "up",
-              "maintenance_active": true,
-              "maintenance_from": "2026-07-21T10:00:00Z",
-              "maintenance_until": "2026-07-21T11:00:00Z"
+              "type": "http",
+              "lifecycle_status": "active",
+              "groups": [{"id": "group-1", "name": "Production"}],
+              "latest_check": {
+                "status": "up",
+                "checked_at": "2026-07-21T10:30:00Z",
+                "response_time_ms": 128.5
+              },
+              "ownership": {"type": "private", "can_manage": true},
+              "open_incident": false,
+              "can_manage": true,
+              "maintenance": {
+                "starts_at": "2026-07-21T10:00:00Z",
+                "ends_at": "2026-07-21T11:00:00Z",
+                "has_recurring_window": true
+              }
             }
           ]
         }
@@ -73,9 +85,14 @@ final class ModelsTests: XCTestCase {
         let list = try decoder.decode(MonitoringListResponse.self, from: listJSON)
         let monitor = list.data[0]
 
-        XCTAssertEqual(monitor.maintenanceActive, true)
-        XCTAssertEqual(monitor.maintenanceFrom, Date(timeIntervalSince1970: 1_784_628_000))
-        XCTAssertEqual(monitor.maintenanceUntil, Date(timeIntervalSince1970: 1_784_631_600))
+        XCTAssertEqual(monitor.lifecycleStatus, "active")
+        XCTAssertEqual(monitor.latestCheck?.status, "up")
+        XCTAssertEqual(monitor.latestCheck?.checkedAt, Date(timeIntervalSince1970: 1_784_629_800))
+        XCTAssertEqual(monitor.groups.first?.name, "Production")
+        XCTAssertEqual(monitor.ownership?.type, "private")
+        XCTAssertEqual(monitor.maintenance.startsAt, Date(timeIntervalSince1970: 1_784_628_000))
+        XCTAssertEqual(monitor.maintenance.endsAt, Date(timeIntervalSince1970: 1_784_631_600))
+        XCTAssertTrue(monitor.maintenance.hasRecurringWindow)
 
         let statusJSON = """
         {

@@ -95,13 +95,16 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
                 id: monitoring.id,
                 name: monitoring.name,
                 target: monitoring.target,
-                status: monitoring.status,
+                status: monitoring.latestCheck?.status ?? monitoring.lifecycleStatus,
                 type: monitoring.type,
                 ownership: monitoring.ownership,
-                lastSeenAt: Date(),
-                maintenanceActive: monitoring.maintenanceActive,
-                maintenanceFrom: monitoring.maintenanceFrom,
-                maintenanceUntil: monitoring.maintenanceUntil
+                lastSeenAt: monitoring.latestCheck?.checkedAt ?? Date(),
+                lifecycleStatus: monitoring.lifecycleStatus,
+                groups: monitoring.groups,
+                maintenanceActive: monitoring.maintenance.isActive,
+                maintenanceFrom: monitoring.maintenance.startsAt,
+                maintenanceUntil: monitoring.maintenance.endsAt,
+                maintenanceHasRecurringWindow: monitoring.maintenance.hasRecurringWindow
             )
         }
     }
@@ -197,9 +200,9 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
 
     func moveMonitoring(id: String, toTeamID: String?) async throws -> MonitoringManagementResponse {
         if let toTeamID {
-            return try await request("/monitorings/\(id)/team-ownership", method: "POST", body: ["team_id": toTeamID])
+            return try await request("/monitorings/\(id)/ownership/team", method: "POST", body: ["team_id": toTeamID])
         }
-        return try await request("/monitorings/\(id)/team-ownership", method: "DELETE")
+        return try await request("/monitorings/\(id)/ownership/private", method: "POST")
     }
 
     func maintenanceWindows(kind: String, state: String? = nil) async throws -> [MobileMaintenanceWindow] {

@@ -430,7 +430,17 @@ final class AppState: ObservableObject {
             } else {
                 response = try await client.createMonitoring(payload)
             }
-            let updated = response.data.knownMonitor(fallback: id.flatMap { existingID in monitors.first { $0.id == existingID } })
+            let fallback = id.flatMap { existingID in monitors.first { $0.id == existingID } }
+                ?? KnownMonitor(
+                    id: response.data.id,
+                    name: payload.name,
+                    target: payload.target,
+                    status: payload.status,
+                    type: payload.type,
+                    lastSeenAt: Date(),
+                    lifecycleStatus: payload.status
+                )
+            let updated = response.data.knownMonitor(fallback: fallback)
             monitors.removeAll { $0.id == updated.id }
             monitors.insert(updated, at: 0)
             cache.saveMonitors(monitors)
