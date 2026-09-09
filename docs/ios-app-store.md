@@ -94,8 +94,8 @@ Setze lokal:
 ```xcconfig
 DEVELOPMENT_TEAM = <apple-team-id>
 PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard
-WEBGUARD_BASE_URL = https:/$()/app.webguard.marcel-breuer.dev
-WEBGUARD_REGISTRATION_URL = https:/$()/app.webguard.marcel-breuer.dev/register
+WEBGUARD_BASE_URL = https:/$()/app.webguard.dev
+WEBGUARD_REGISTRATION_URL = https:/$()/app.webguard.dev/register
 ```
 
 `WEBGUARD_BASE_URL` und `WEBGUARD_REGISTRATION_URL` sind Build-Werte. Beide muessen gueltige HTTPS-URLs sein. Die App zeigt die Server-URL nicht im Login an und Benutzer melden sich nur mit E-Mail und Passwort an.
