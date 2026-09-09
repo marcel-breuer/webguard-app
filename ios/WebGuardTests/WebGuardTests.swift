@@ -3,6 +3,25 @@ import XCTest
 @testable import WebGuard
 
 final class WebGuardTests: XCTestCase {
+    func testProductionConfigurationUsesCanonicalCoreDomain() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let files = [
+            "ios/WebGuard/Config/Debug.xcconfig",
+            "ios/WebGuard/Config/Release.xcconfig",
+            "docs/ios-app-store.md"
+        ]
+
+        for file in files {
+            let contents = try String(contentsOf: repositoryRoot.appendingPathComponent(file), encoding: .utf8)
+
+            XCTAssertFalse(contents.contains("app.webguard.marcel-breuer.dev"), file)
+            XCTAssertTrue(contents.contains("https:/$()/app.webguard.dev"), file)
+        }
+    }
+
     func testClientNormalizesBaseURL() {
         let client = WebGuardAPIClient(serverURL: URL(string: "https://webguard.example.com/api?debug=true#section")!)
 
