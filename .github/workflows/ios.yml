@@ -53,6 +53,7 @@ jobs:
             -destination "id=$SIMULATOR_ID" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
             CODE_SIGNING_ALLOWED=NO \
+            -parallel-testing-enabled NO \
             test
 
       - name: Build app for iOS device

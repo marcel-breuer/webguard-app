@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct MonitoringListView: View {
@@ -854,7 +855,7 @@ private struct ServerHealthMetric: View {
     }
 
     private func metricValue(_ value: Double) -> String {
-        "\(value, specifier: "%.1f")\(unit)"
+        "\(value.formatted(.number.precision(.fractionLength(1))))\(unit)"
     }
 
     private var accessibilityText: String {
