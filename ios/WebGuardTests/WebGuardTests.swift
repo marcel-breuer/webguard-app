@@ -285,12 +285,12 @@ final class WebGuardTests: XCTestCase {
         URLProtocolStub.reset()
         URLProtocolStub.install { request in
             let statusCode: Int
-            switch request.url?.path {
-            case "/api/monitorings": statusCode = 401
-            case "/api/monitorings/monitor-1": statusCode = 403
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/api/monitorings"): statusCode = 401
+            case ("DELETE", "/api/monitorings/monitor-1"): statusCode = 403
             default: statusCode = 200
             }
-            let body = statusCode == 401 ? Data() : Data(#"{"data":{"id":"monitor-1"}}"#.utf8)
+            let body = statusCode == 401 || statusCode == 403 ? Data() : Data(#"{"data":{"id":"monitor-1"}}"#.utf8)
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: statusCode,
@@ -518,8 +518,25 @@ private final class URLProtocolStub: URLProtocol {
     }
 
     override func startLoading() {
+        var recordedRequest = request
+        if recordedRequest.httpBody == nil, let bodyStream = recordedRequest.httpBodyStream {
+            bodyStream.open()
+            defer { bodyStream.close() }
+
+            var body = Data()
+            let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 4096)
+            defer { buffer.deallocate() }
+
+            while bodyStream.hasBytesAvailable {
+                let count = bodyStream.read(buffer, maxLength: 4096)
+                guard count > 0 else { break }
+                body.append(buffer, count: count)
+            }
+            recordedRequest.httpBody = body
+        }
+
         Self.lock.lock()
-        Self.requests.append(request)
+        Self.requests.append(recordedRequest)
         let handler = Self.handler
         Self.lock.unlock()
 
