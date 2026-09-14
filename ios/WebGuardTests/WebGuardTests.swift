@@ -285,12 +285,18 @@ final class WebGuardTests: XCTestCase {
         URLProtocolStub.reset()
         URLProtocolStub.install { request in
             let statusCode: Int
+            let body: Data
             switch (request.httpMethod, request.url?.path) {
-            case ("GET", "/api/monitorings"): statusCode = 401
-            case ("DELETE", "/api/monitorings/monitor-1"): statusCode = 403
-            default: statusCode = 200
+            case ("GET", "/api/monitorings"):
+                statusCode = 401
+                body = Data()
+            case ("DELETE", "/api/monitorings/monitor-1"):
+                statusCode = 403
+                body = Data()
+            default:
+                statusCode = 200
+                body = Data("{}".utf8)
             }
-            let body = statusCode == 401 || statusCode == 403 ? Data() : Data(#"{"data":{"id":"monitor-1"}}"#.utf8)
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: statusCode,
