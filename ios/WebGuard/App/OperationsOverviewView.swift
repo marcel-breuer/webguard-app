@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 struct OperationsOverviewView: View {
@@ -433,7 +434,7 @@ private struct OverviewTrendCard: View {
     }
 
     private func uptimeLabel(_ percentage: Double) -> String {
-        "\(percentage, specifier: "%.1f")%"
+        "\(percentage.formatted(.number.precision(.fractionLength(1))))%"
     }
 
     private func barHeight(_ point: OverviewTrendPoint) -> CGFloat {
