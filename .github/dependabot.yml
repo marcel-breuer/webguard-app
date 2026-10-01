@@ -1,8 +1,21 @@
 version: 2
+
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directory: /
     schedule:
       interval: monthly
       time: "00:00"
-      timezone: "Europe/Berlin"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 1
+    assignees:
+      - marcel-breuer
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      version-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
