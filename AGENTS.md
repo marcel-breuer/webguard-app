@@ -40,7 +40,7 @@ Agents MUST NOT invent business requirements.
 - `WebGuardAPIClient` owns WebGuard HTTP API requests. Models and DTOs live in `Models.swift`.
 - Non-secret build values live in `ios/WebGuard/Config/Debug.xcconfig` and `ios/WebGuard/Config/Release.xcconfig`.
 - APNs entitlement and privacy manifest files are included in `ios/WebGuard`.
-- There is no Docker, package manager, lockfile, test target, database, CI/CD, or infrastructure-as-code configuration in this checkout.
+- There is no Docker, dependency manager, lockfile, database, or infrastructure-as-code configuration in this checkout. The Xcode project has a `WebGuardTests` XCTest target, and `.github/workflows/ios.yml` runs its simulator suite.
 - If project Docker or container configuration is added later, agents MUST prefer the project-defined container workflow for installs, commands, tests, and validation when technically possible.
 
 ## Source of Truth
@@ -123,7 +123,7 @@ Final output SHOULD normally include only what changed, files changed, validatio
 
 ## Testing Rules
 
-- No test target or test framework exists in this checkout.
+- The existing `WebGuardTests` target uses XCTest. Follow the simulator test command in `ios/VALIDATION.md`.
 - Add tests for new or changed business logic when feasible. If adding a test target, keep it scoped to the changed behavior and document the new validation command.
 - Bug fixes SHOULD include regression tests where practical.
 - Tests MUST verify observable behavior rather than implementation details.
@@ -136,7 +136,7 @@ Prefer project-defined commands. This checkout has no Docker or container config
 
 | Change type | Required validation |
 | --- | --- |
-| Swift app logic or UI | `xcodebuild -project ios/WebGuard.xcodeproj -scheme WebGuard -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build` |
+| Swift app logic or UI | The documented iOS build and simulator test commands in `ios/VALIDATION.md` |
 | Project, entitlement, privacy, or asset changes | Same `xcodebuild` build, plus focused inspection of changed plist, entitlement, asset, or project entries |
 | API contract changes | Same `xcodebuild` build, plus review against documented WebGuard endpoints |
 | Documentation or governance only | Review changed Markdown for accuracy, links, and absence of duplicated or conflicting rules |

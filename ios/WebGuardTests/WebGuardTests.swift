@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import XCTest
 @testable import WebGuard
 
@@ -26,6 +27,63 @@ final class WebGuardTests: XCTestCase {
         let client = WebGuardAPIClient(serverURL: URL(string: "https://webguard.example.com/api?debug=true#section")!)
 
         XCTAssertEqual(client.serverURL.absoluteString, "https://webguard.example.com/api")
+    }
+
+    func testAuthenticatedRequestUsesHTTPSBearerHeaderAndTimeoutBudget() async throws {
+        URLProtocolStub.reset()
+        URLProtocolStub.install { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 204, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+        defer { URLProtocolStub.reset() }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [URLProtocolStub.self]
+        let client = WebGuardAPIClient(
+            serverURL: URL(string: "https://webguard.example.test")!,
+            token: "fixture-token",
+            urlSession: URLSession(configuration: configuration)
+        )
+
+        try await client.logout()
+
+        let request = try XCTUnwrap(URLProtocolStub.recordedRequests().first)
+        XCTAssertEqual(request.url?.scheme, "https")
+        XCTAssertNil(request.url?.query)
+        XCTAssertFalse(request.url?.absoluteString.contains("fixture-token") ?? true)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-token")
+        XCTAssertEqual(request.timeoutInterval, WebGuardBudgets.apiRequestTimeout)
+        XCTAssertEqual(WebGuardBudgets.apiRequestTimeout, 15)
+    }
+
+    func testKeychainSessionUsesDeviceOnlyProtection() throws {
+        let service = "webguard.tests.\(UUID().uuidString)"
+        let store = KeychainStore(service: service)
+        defer { try? store.clearSession() }
+
+        let session = Fixtures.session()
+        try store.saveSession(session)
+        let loadedSession = try XCTUnwrap(store.loadSession())
+
+        XCTAssertEqual(loadedSession.accessToken, session.accessToken)
+        XCTAssertEqual(loadedSession.user.id, session.user.id)
+
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: "session",
+            kSecReturnAttributes: true,
+            kSecMatchLimit: kSecMatchLimitOne
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        XCTAssertEqual(status, errSecSuccess)
+
+        let attributes = try XCTUnwrap(item as? [CFString: Any])
+        XCTAssertEqual(
+            attributes[kSecAttrAccessible] as? String,
+            kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
+        )
     }
 
     func testClientUsesConsolidatedCoreRoutes() async throws {
@@ -352,6 +410,7 @@ final class WebGuardTests: XCTestCase {
     func testConfigurationRequiresValidHTTPSURLs() throws {
         XCTAssertThrowsError(try WebGuardConfiguration.validatedHTTPSURL(nil))
         XCTAssertThrowsError(try WebGuardConfiguration.validatedHTTPSURL("http://webguard.example.test"))
+        XCTAssertThrowsError(try WebGuardConfiguration.validatedHTTPSURL("https://user:password@webguard.example.test"))
 
         let url = try WebGuardConfiguration.validatedHTTPSURL("https://webguard.example.test/register")
 
@@ -584,6 +643,102 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.overview.recommendedAction, "notifications")
         XCTAssertEqual(state.monitors, [monitor])
         XCTAssertTrue(state.isMonitoringDataStale)
+    }
+
+    func testMonitoringDataBecomesStaleAfterFiveMinuteBudget() {
+        let monitor = Fixtures.monitor(status: "up")
+        let now = Date()
+        let freshState = AppState(
+            keychain: InMemorySessionStore(session: Fixtures.session()),
+            cache: InMemoryCacheStore(
+                monitors: [monitor],
+                lastRefreshAt: now.addingTimeInterval(-WebGuardBudgets.monitoringFreshnessWindow + 1)
+            ),
+            apnsService: .shared,
+            clientFactory: { _ in MockAPIClient() }
+        )
+        let staleState = AppState(
+            keychain: InMemorySessionStore(session: Fixtures.session()),
+            cache: InMemoryCacheStore(
+                monitors: [monitor],
+                lastRefreshAt: now.addingTimeInterval(-WebGuardBudgets.monitoringFreshnessWindow - 1)
+            ),
+            apnsService: .shared,
+            clientFactory: { _ in MockAPIClient() }
+        )
+
+        XCTAssertFalse(freshState.isMonitoringDataStale)
+        XCTAssertTrue(staleState.isMonitoringDataStale)
+    }
+
+    func testSignInStartsMonitoringAndOverviewRequestsConcurrently() async {
+        let monitor = Fixtures.monitor(status: "up")
+        let cache = InMemoryCacheStore()
+        let sessionStore = InMemorySessionStore()
+        let api = MockAPIClient()
+        api.loginResult = .success(MobileLoginData(
+            token: "mobile-token",
+            user: AuthenticatedUser(id: "user-1", name: "Test User", email: "test@example.test")
+        ))
+        api.monitoringsResult = .success([monitor])
+        api.notificationBoardResult = .success(MobileNotificationBoardResponse(
+            data: [],
+            meta: MobileNotificationBoardMeta(nextCursor: nil, hasMore: false, unreadCount: 0)
+        ))
+
+        let monitoringGate = AsyncTestGate()
+        api.monitoringListGate = monitoringGate
+        let monitoringsStarted = expectation(description: "monitorings request started")
+        let overviewStarted = expectation(description: "overview request started before monitorings finished")
+        api.onMonitoringListStarted = { monitoringsStarted.fulfill() }
+        api.onOverviewStarted = { overviewStarted.fulfill() }
+
+        let state = AppState(
+            keychain: sessionStore,
+            cache: cache,
+            apnsService: FakePushService(),
+            deviceContextProvider: FakeDeviceContextProvider(),
+            apiClientFactory: WebGuardAPIClientFactory(
+                unauthenticatedClient: { _ in api },
+                authenticatedClient: { _ in api }
+            ),
+            serverURLProvider: { URL(string: "https://example.test")! }
+        )
+        let signInTask = Task { await state.signIn(email: "test@example.test", password: "secret") }
+
+        await fulfillment(of: [monitoringsStarted, overviewStarted], timeout: 2)
+        await monitoringGate.open()
+        await signInTask.value
+
+        XCTAssertEqual(state.authenticationState, .authenticated)
+        let requestCount = await api.monitoringRequestCounter.value()
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    func testConcurrentMonitoringRefreshesShareOneRequest() async {
+        let api = MockAPIClient()
+        api.monitoringsResult = .success([Fixtures.monitor(status: "up")])
+        let cache = InMemoryCacheStore()
+        let monitoringGate = AsyncTestGate()
+        api.monitoringListGate = monitoringGate
+        let refreshStarted = expectation(description: "monitoring refresh started")
+        api.onMonitoringListStarted = { refreshStarted.fulfill() }
+        let state = AppState(
+            keychain: InMemorySessionStore(session: Fixtures.session()),
+            cache: cache,
+            apnsService: .shared,
+            clientFactory: { _ in api }
+        )
+
+        let firstRefresh = Task { await state.refreshMonitorings() }
+        await fulfillment(of: [refreshStarted], timeout: 2)
+        await state.refreshMonitorings()
+        await monitoringGate.open()
+        await firstRefresh.value
+
+        let requestCount = await api.monitoringRequestCounter.value()
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertEqual(state.monitors, [Fixtures.monitor(status: "up")])
     }
 
     func testOverviewFailureKeepsCachedDataAndMarksOffline() async {
@@ -1027,6 +1182,10 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
     var markNotificationReadResult: Result<Void, Error> = .success(())
     var markAllNotificationReadResult: Result<Int, Error> = .success(0)
     var logoutCount = 0
+    let monitoringRequestCounter = TestRequestCounter()
+    var monitoringListGate: AsyncTestGate?
+    var onMonitoringListStarted: (() -> Void)?
+    var onOverviewStarted: (() -> Void)?
 
     func login(email: String, password: String, deviceContext: DeviceContext) async throws -> MobileLoginData {
         try loginResult.get()
@@ -1037,11 +1196,17 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
     }
 
     func listMonitorings() async throws -> [KnownMonitor] {
-        try monitoringsResult.get()
+        await monitoringRequestCounter.increment()
+        onMonitoringListStarted?()
+        if let monitoringListGate {
+            await monitoringListGate.wait()
+        }
+        return try monitoringsResult.get()
     }
 
     func operationsOverview(servicePage: Int) async throws -> MobileOverviewPayload {
-        try overviewResult.get()
+        onOverviewStarted?()
+        return try overviewResult.get()
     }
 
     func registerAPNsDevice(
@@ -1116,6 +1281,37 @@ private final class MockAPIClient: WebGuardAPIClientProtocol {
         sslExpiryWarningDays: Int
     ) async throws -> MonitoringNotificationPreference {
         throw TestError.unexpectedCall
+    }
+}
+
+private actor AsyncTestGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func open() {
+        isOpen = true
+        let pending = waiters
+        waiters.removeAll()
+        pending.forEach { $0.resume() }
+    }
+}
+
+private actor TestRequestCounter {
+    private var count = 0
+
+    func increment() {
+        count += 1
+    }
+
+    func value() -> Int {
+        count
     }
 }
 

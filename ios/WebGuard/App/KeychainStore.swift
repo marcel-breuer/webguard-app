@@ -16,9 +16,11 @@ protocol SessionStore {
 final class KeychainStore: SessionStore {
     static let shared = KeychainStore()
 
-    private let service = "com.example.webguard"
+    private let service: String
 
-    private init() {}
+    init(service: String = "com.example.webguard") {
+        self.service = service
+    }
 
     func loadSession() throws -> StoredSession? {
         guard let data = try data(for: "session") else {

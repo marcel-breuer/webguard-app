@@ -25,6 +25,8 @@ WebGuard brings your monitoring list and critical status changes directly to you
 - UserDefaults for schema-versioned, account-scoped local monitoring and event caches
 - Universal iOS target for iPhone and iPad
 
+See [iOS architecture and reliability](docs/ios-architecture.md) for the API contract, refresh budgets, storage boundaries, and performance workflow.
+
 ## Opening The Project
 
 ```text

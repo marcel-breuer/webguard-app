@@ -11,6 +11,9 @@ struct MonitoringListView: View {
     @State private var showingMaintenance = false
 
     private var filteredMonitors: [KnownMonitor] {
+        let filteringInterval = WebGuardPerformance.begin("MonitoringListFiltering")
+        defer { WebGuardPerformance.end("MonitoringListFiltering", filteringInterval) }
+
         let base = filter == .systems ? appState.monitors.filter { $0.status != nil } : appState.monitors
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
@@ -85,7 +88,7 @@ struct MonitoringListView: View {
                     FormTextField(title: "Suchen", text: $query)
                         .accessibilityIdentifier(WebGuardAccessibilityID.monitoringSearch)
 
-                    VStack(spacing: 0) {
+                    LazyVStack(spacing: 0) {
                         if filteredMonitors.isEmpty {
                             Text(emptyStateMessage)
                                 .font(.system(size: 15, design: .rounded))
@@ -115,7 +118,7 @@ struct MonitoringListView: View {
                 await appState.refreshMonitorings()
             }
             .task {
-                if appState.monitors.isEmpty {
+                if appState.monitors.isEmpty || appState.isMonitoringDataStale {
                     await appState.refreshMonitorings()
                 }
 

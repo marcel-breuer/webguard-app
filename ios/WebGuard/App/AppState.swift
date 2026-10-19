@@ -35,8 +35,7 @@ final class AppState: ObservableObject {
     private let apiClientFactory: WebGuardAPIClientFactory
     private let serverURLProvider: () throws -> URL
     private var notificationObservers: [NSObjectProtocol] = []
-    private static let monitoringFreshnessWindow: TimeInterval = 5 * 60
-    private static let notificationBoardFreshnessWindow: TimeInterval = 5 * 60
+    private var isMonitoringRefreshInFlight = false
 
     convenience init() {
         self.init(
@@ -57,6 +56,9 @@ final class AppState: ObservableObject {
         apiClientFactory: WebGuardAPIClientFactory,
         serverURLProvider: @escaping () throws -> URL
     ) {
+        let initializationInterval = WebGuardPerformance.begin("AppStateInitialization")
+        defer { WebGuardPerformance.end("AppStateInitialization", initializationInterval) }
+
         self.keychain = keychain
         self.cache = cache
         self.apnsService = apnsService
@@ -197,8 +199,10 @@ final class AppState: ObservableObject {
                     lastTokenRefreshAt: nil
                 )
             )
-            let monitorings = try await authenticatedClient.listMonitorings()
-            let remoteOverview = try? await authenticatedClient.operationsOverview(servicePage: 1)
+            async let monitoringsRequest = authenticatedClient.listMonitorings()
+            async let overviewRequest = try? await authenticatedClient.operationsOverview(servicePage: 1)
+            let monitorings = try await monitoringsRequest
+            let remoteOverview = await overviewRequest
 
             let next = StoredSession(
                 serverURL: serverURL,
@@ -310,9 +314,14 @@ final class AppState: ObservableObject {
     }
 
     func refreshMonitorings() async {
-        guard let client = apiClient else {
+        guard let client = apiClient, !isMonitoringRefreshInFlight else {
             return
         }
+
+        isMonitoringRefreshInFlight = true
+        defer { isMonitoringRefreshInFlight = false }
+        let refreshInterval = WebGuardPerformance.begin("MonitoringRefresh")
+        defer { WebGuardPerformance.end("MonitoringRefresh", refreshInterval) }
 
         monitoringLoadState = monitors.isEmpty ? .loading : .refreshing
         do {
@@ -342,14 +351,14 @@ final class AppState: ObservableObject {
             return !monitors.isEmpty
         }
 
-        return Date().timeIntervalSince(lastMonitoringRefreshAt) > Self.monitoringFreshnessWindow
+        return Date().timeIntervalSince(lastMonitoringRefreshAt) > WebGuardBudgets.monitoringFreshnessWindow
     }
 
     var isNotificationBoardStale: Bool {
         guard let notificationBoardFetchedAt else {
             return !notificationBoard.isEmpty
         }
-        return Date().timeIntervalSince(notificationBoardFetchedAt) > Self.notificationBoardFreshnessWindow
+        return Date().timeIntervalSince(notificationBoardFetchedAt) > WebGuardBudgets.notificationBoardFreshnessWindow
     }
 
     func refreshMonitoring(_ monitoringID: String) async -> KnownMonitor? {
