@@ -18,6 +18,13 @@ final class KeychainStore: SessionStore {
 
     private let service: String
 
+    static func sessionAttributes(for data: Data) -> [CFString: Any] {
+        [
+            kSecValueData: data,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+    }
+
     init(service: String = "com.example.webguard") {
         self.service = service
     }
@@ -90,10 +97,7 @@ final class KeychainStore: SessionStore {
             kSecAttrAccount: account
         ]
 
-        let attributes: [CFString: Any] = [
-            kSecValueData: data,
-            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
+        let attributes = Self.sessionAttributes(for: data)
 
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
 

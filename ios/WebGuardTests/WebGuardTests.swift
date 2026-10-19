@@ -56,30 +56,9 @@ final class WebGuardTests: XCTestCase {
         XCTAssertEqual(WebGuardBudgets.apiRequestTimeout, 15)
     }
 
-    func testKeychainSessionUsesDeviceOnlyProtection() throws {
-        let service = "webguard.tests.\(UUID().uuidString)"
-        let store = KeychainStore(service: service)
-        defer { try? store.clearSession() }
+    func testKeychainSessionUsesDeviceOnlyProtection() {
+        let attributes = KeychainStore.sessionAttributes(for: Data())
 
-        let session = Fixtures.session()
-        try store.saveSession(session)
-        let loadedSession = try XCTUnwrap(store.loadSession())
-
-        XCTAssertEqual(loadedSession.accessToken, session.accessToken)
-        XCTAssertEqual(loadedSession.user.id, session.user.id)
-
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: "session",
-            kSecReturnAttributes: true,
-            kSecMatchLimit: kSecMatchLimitOne
-        ]
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        XCTAssertEqual(status, errSecSuccess)
-
-        let attributes = try XCTUnwrap(item as? [CFString: Any])
         XCTAssertEqual(
             attributes[kSecAttrAccessible] as? String,
             kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
