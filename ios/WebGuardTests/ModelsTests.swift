@@ -230,6 +230,28 @@ final class ModelsTests: XCTestCase {
         XCTAssertNil(cache.loadLastMonitoringRefreshAt())
     }
 
+    func testLocalCacheLoadPerformanceAtMonitoringCapacity() {
+        let suiteName = "webguard.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cache = LocalCache(defaults: defaults)
+        cache.activate(for: "user-1")
+        let monitors = (0..<120).map { index in
+            KnownMonitor(
+                id: "monitor-\(index)",
+                name: "Service \(index)",
+                target: "https://example.test/\(index)",
+                status: "up",
+                lastSeenAt: Date(timeIntervalSince1970: 1_700_000_000 + TimeInterval(index))
+            )
+        }
+        cache.saveMonitors(monitors)
+
+        measure {
+            XCTAssertEqual(cache.loadMonitors().count, 100)
+        }
+    }
+
     func testLocalCacheMigratesLegacyDataAndIsolatesAccounts() {
         let suiteName = "webguard.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

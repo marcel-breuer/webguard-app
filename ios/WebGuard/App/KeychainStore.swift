@@ -16,9 +16,18 @@ protocol SessionStore {
 final class KeychainStore: SessionStore {
     static let shared = KeychainStore()
 
-    private let service = "com.example.webguard"
+    private let service: String
 
-    private init() {}
+    static func sessionAttributes(for data: Data) -> [CFString: Any] {
+        [
+            kSecValueData: data,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+    }
+
+    init(service: String = "com.example.webguard") {
+        self.service = service
+    }
 
     func loadSession() throws -> StoredSession? {
         guard let data = try data(for: "session") else {
@@ -88,10 +97,7 @@ final class KeychainStore: SessionStore {
             kSecAttrAccount: account
         ]
 
-        let attributes: [CFString: Any] = [
-            kSecValueData: data,
-            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
+        let attributes = Self.sessionAttributes(for: data)
 
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
 

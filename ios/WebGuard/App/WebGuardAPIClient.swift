@@ -439,7 +439,7 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        request.timeoutInterval = 15
+        request.timeoutInterval = WebGuardBudgets.apiRequestTimeout
         headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
 
         request.httpBody = bodyData

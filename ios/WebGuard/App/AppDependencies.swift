@@ -1,4 +1,26 @@
 import Foundation
+import os
+
+enum WebGuardBudgets {
+    static let apiRequestTimeout: TimeInterval = 15
+    static let monitoringFreshnessWindow: TimeInterval = 5 * 60
+    static let notificationBoardFreshnessWindow: TimeInterval = 5 * 60
+}
+
+enum WebGuardPerformance {
+    private static let signposter = OSSignposter(
+        subsystem: Bundle.main.bundleIdentifier ?? "WebGuard",
+        category: "Performance"
+    )
+
+    static func begin(_ name: StaticString) -> OSSignpostIntervalState {
+        signposter.beginInterval(name)
+    }
+
+    static func end(_ name: StaticString, _ state: OSSignpostIntervalState) {
+        signposter.endInterval(name, state)
+    }
+}
 
 enum WebGuardConfigurationError: LocalizedError {
     case missingServerURL
