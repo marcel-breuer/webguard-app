@@ -36,6 +36,9 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Validate release identity
+        run: ./scripts/validate-release-identity.sh
+
       - name: Run tests
         run: |
           set -eo pipefail

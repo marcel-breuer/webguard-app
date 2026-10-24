@@ -62,7 +62,7 @@ enum WidgetDeepLink {
 }
 
 enum WidgetSnapshotStore {
-    static let appGroup = "group.com.example.webguard"
+    static let appGroup = "group.com.marcelbreuer.webguard"
     private static let snapshotKey = "webguard.widget.snapshot"
 
     private static let encoder = WidgetSnapshotCoding.makeEncoder()
