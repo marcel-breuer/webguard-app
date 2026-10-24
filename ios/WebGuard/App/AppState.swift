@@ -439,16 +439,20 @@ final class AppState: ObservableObject {
             } else {
                 response = try await client.createMonitoring(payload)
             }
-            let fallback = id.flatMap { existingID in monitors.first { $0.id == existingID } }
+            var fallback = id.flatMap { existingID in monitors.first { $0.id == existingID } }
                 ?? KnownMonitor(
                     id: response.data.id,
                     name: payload.name,
                     target: payload.target,
                     status: payload.status,
                     type: payload.type,
+                    keyword: payload.keyword,
+                    checkIntervalMinutes: payload.checkIntervalMinutes,
                     lastSeenAt: Date(),
                     lifecycleStatus: payload.status
                 )
+            fallback.keyword = payload.type == "keyword" ? payload.keyword : nil
+            fallback.checkIntervalMinutes = WebsiteCheckIntervals.applies(to: payload.type) ? payload.checkIntervalMinutes : nil
             let updated = response.data.knownMonitor(fallback: fallback)
             monitors.removeAll { $0.id == updated.id }
             monitors.insert(updated, at: 0)

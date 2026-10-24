@@ -41,6 +41,8 @@ struct KnownMonitor: Codable, Identifiable, Equatable, Hashable {
     var target: String
     var status: String?
     var type: String? = nil
+    var keyword: String? = nil
+    var checkIntervalMinutes: Int? = nil
     var ownership: MobileMonitoringOwnership? = nil
     var lastSeenAt: Date
     var lifecycleStatus: String? = nil
@@ -49,6 +51,19 @@ struct KnownMonitor: Codable, Identifiable, Equatable, Hashable {
     var maintenanceFrom: Date? = nil
     var maintenanceUntil: Date? = nil
     var maintenanceHasRecurringWindow: Bool? = nil
+}
+
+enum WebsiteCheckIntervals {
+    static let options = [1, 5, 10, 15, 30, 60]
+    static let defaultMinutes = 15
+
+    static func applies(to type: String?) -> Bool {
+        type == "http" || type == "keyword"
+    }
+
+    static func initialSelection(for monitor: KnownMonitor?) -> Int {
+        monitor?.checkIntervalMinutes ?? defaultMinutes
+    }
 }
 
 struct MonitoringGroupReference: Codable, Equatable, Hashable, Identifiable {
@@ -132,12 +147,16 @@ struct MonitoringMutationPayload: Encodable, Equatable {
     var expectedHTTPStatuses: String?
     var httpHeaders: [String: String]?
     var port: Int?
+    var keyword: String? = nil
+    var checkIntervalMinutes: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case name, target, type, status, timeout, port
         case httpMethod = "http_method"
         case expectedHTTPStatuses = "expected_http_statuses"
         case httpHeaders = "http_headers"
+        case keyword
+        case checkIntervalMinutes = "check_interval_minutes"
     }
 }
 
@@ -258,13 +277,16 @@ struct MonitoringManagementItem: Decodable, Equatable {
     var name: String?
     var target: String?
     var type: String?
+    var keyword: String?
+    var checkIntervalMinutes: Int?
     var lifecycleStatus: String?
     var status: String?
     var ownership: MobileMonitoringOwnership?
     var groupAssignments: [MonitoringGroupReference]?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, target, type, ownership, status
+        case id, name, target, type, keyword, ownership, status
+        case checkIntervalMinutes = "check_interval_minutes"
         case lifecycleStatus = "lifecycle_status"
         case groupAssignments = "group_assignments"
     }
@@ -276,6 +298,8 @@ struct MonitoringManagementItem: Decodable, Equatable {
             target: target ?? fallback?.target ?? "",
             status: lifecycleStatus ?? status ?? fallback?.status,
             type: type ?? fallback?.type,
+            keyword: keyword ?? fallback?.keyword,
+            checkIntervalMinutes: checkIntervalMinutes ?? fallback?.checkIntervalMinutes,
             ownership: ownership,
             lastSeenAt: fallback?.lastSeenAt ?? Date(),
             lifecycleStatus: lifecycleStatus ?? fallback?.lifecycleStatus,
@@ -960,6 +984,8 @@ struct MonitoringSummary: Decodable, Identifiable {
     var name: String
     var target: String
     var type: String?
+    var keyword: String?
+    var checkIntervalMinutes: Int?
     var lifecycleStatus: String?
     var groups: [MonitoringGroupReference]
     var latestCheck: MonitoringLatestCheck?
@@ -973,6 +999,8 @@ struct MonitoringSummary: Decodable, Identifiable {
         case name
         case target
         case type
+        case keyword
+        case checkIntervalMinutes = "check_interval_minutes"
         case lifecycleStatus = "lifecycle_status"
         case groups
         case latestCheck = "latest_check"

@@ -2,6 +2,74 @@ import XCTest
 @testable import WebGuard
 
 final class ModelsTests: XCTestCase {
+    func testHTTPAndKeywordMutationEncodesEverySupportedCheckInterval() throws {
+        for type in ["http", "keyword"] {
+            for interval in WebsiteCheckIntervals.options {
+                let payload = MonitoringMutationPayload(
+                    name: "API",
+                    target: "https://example.test",
+                    type: type,
+                    status: "active",
+                    timeout: 10,
+                    httpMethod: "GET",
+                    expectedHTTPStatuses: "200-299",
+                    httpHeaders: [:],
+                    port: nil,
+                    keyword: type == "keyword" ? "healthy" : nil,
+                    checkIntervalMinutes: interval
+                )
+
+                let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any])
+
+                XCTAssertEqual(object["check_interval_minutes"] as? Int, interval)
+                XCTAssertEqual(object["keyword"] as? String, type == "keyword" ? "healthy" : nil)
+            }
+        }
+    }
+
+    func testWebsiteCheckIntervalDefaultsAndEditorTypeScope() {
+        XCTAssertEqual(WebsiteCheckIntervals.defaultMinutes, 15)
+        XCTAssertEqual(WebsiteCheckIntervals.initialSelection(for: nil), 15)
+        XCTAssertEqual(WebsiteCheckIntervals.initialSelection(for: KnownMonitor(
+            id: "monitor-1",
+            name: "API",
+            target: "https://example.test",
+            type: "keyword",
+            checkIntervalMinutes: 30,
+            lastSeenAt: Date()
+        )), 30)
+        XCTAssertTrue(WebsiteCheckIntervals.applies(to: "http"))
+        XCTAssertTrue(WebsiteCheckIntervals.applies(to: "keyword"))
+        XCTAssertFalse(WebsiteCheckIntervals.applies(to: "ping"))
+    }
+
+    func testMonitoringManagementResponsePreservesIntervalAndKeywordWithLegacyFallback() throws {
+        let current = try JSONDecoder().decode(
+            MonitoringManagementItem.self,
+            from: Data(#"{"id":"monitor-1","name":"Keyword","target":"https://example.test","type":"keyword","keyword":"healthy","check_interval_minutes":30}"#.utf8)
+        )
+        let fallback = KnownMonitor(
+            id: "monitor-1",
+            name: "Keyword",
+            target: "https://example.test",
+            type: "keyword",
+            keyword: "healthy",
+            checkIntervalMinutes: 15,
+            lastSeenAt: Date()
+        )
+
+        XCTAssertEqual(current.knownMonitor(fallback: fallback).checkIntervalMinutes, 30)
+        XCTAssertEqual(current.knownMonitor(fallback: fallback).keyword, "healthy")
+
+        let legacy = try JSONDecoder().decode(
+            MonitoringManagementItem.self,
+            from: Data(#"{"id":"monitor-1","name":"Keyword","target":"https://example.test","type":"keyword"}"#.utf8)
+        )
+
+        XCTAssertEqual(legacy.knownMonitor(fallback: fallback).checkIntervalMinutes, 15)
+        XCTAssertEqual(legacy.knownMonitor(fallback: fallback).keyword, "healthy")
+    }
+
     func testFallbackCreatesDegradedOverviewForDownMonitor() {
         let monitor = KnownMonitor(
             id: "monitor-1",
