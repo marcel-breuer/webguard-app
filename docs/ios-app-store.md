@@ -21,7 +21,7 @@ Voraussetzungen:
 App Identifier:
 
 ```text
-com.example.webguard
+com.marcelbreuer.webguard
 ```
 
 Aktiviere fuer diese App ID:
@@ -34,7 +34,7 @@ Danach einen APNs Auth Key erstellen:
 Key ID
 Team ID
 Auth Key .p8
-Bundle ID / Topic: com.example.webguard
+Bundle ID / Topic: com.marcelbreuer.webguard
 ```
 
 Der `.p8` Key gehoert ins Backend-Deployment, nicht in die iOS-App und nicht ins Git-Repo.
@@ -62,7 +62,7 @@ Produktive APNs-Werte im Backend:
 ```env
 APNS_KEY_ID=
 APNS_TEAM_ID=
-APNS_BUNDLE_ID=com.example.webguard
+APNS_BUNDLE_ID=com.marcelbreuer.webguard
 APNS_PRIVATE_KEY=
 APNS_PRIVATE_KEY_PATH=
 APNS_ENVIRONMENT=production
@@ -92,10 +92,19 @@ ios/WebGuard/Config/Release.xcconfig
 Setze lokal:
 
 ```xcconfig
-DEVELOPMENT_TEAM = <apple-team-id>
-PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard
+APPLE_DEVELOPMENT_TEAM = <Apple-Team-ID>
+DEVELOPMENT_TEAM = $(APPLE_DEVELOPMENT_TEAM)
+PRODUCT_BUNDLE_IDENTIFIER = com.marcelbreuer.webguard
 WEBGUARD_BASE_URL = https:/$()/app.webguard.dev
 WEBGUARD_REGISTRATION_URL = https:/$()/app.webguard.dev/register
+```
+
+`APPLE_DEVELOPMENT_TEAM` is the ten-character Team ID shown in the Apple Developer account. Provide it as an Xcode build setting or protected CI variable when creating a signed archive; the checked-in xcconfig forwards it to Xcode without storing account-specific data. The app and widget share `group.com.marcelbreuer.webguard` for app-group storage. Register that group and enable Push Notifications for the app identifier before signing.
+
+The release identity is checked before CI tests run:
+
+```sh
+./scripts/validate-release-identity.sh
 ```
 
 `WEBGUARD_BASE_URL` und `WEBGUARD_REGISTRATION_URL` sind Build-Werte. Beide muessen gueltige HTTPS-URLs sein. Die App zeigt die Server-URL nicht im Login an und Benutzer melden sich nur mit E-Mail und Passwort an.
@@ -138,7 +147,7 @@ In App Store Connect:
 3. Platform: iOS.
 4. Name: `WebGuard`.
 5. Primary language: Deutsch oder Englisch.
-6. Bundle ID: `com.example.webguard`.
+6. Bundle ID: `com.marcelbreuer.webguard`.
 7. SKU: z. B. `webguard-ios`.
 8. User Access passend setzen.
 

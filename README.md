@@ -46,7 +46,7 @@ ios/WebGuard/Config/Debug.xcconfig
 ios/WebGuard/Config/Release.xcconfig
 ```
 
-Credentials do not belong in the repository. Backend URLs, team IDs, and the APNs environment may be stored in xcconfig files; passwords, APNs private keys, and test accounts should stay in local `.env` files or in the deployment environment.
+Credentials do not belong in the repository. Backend URLs and the APNs environment may be stored in xcconfig files; provide the Apple Developer Team ID as `APPLE_DEVELOPMENT_TEAM` at build time. Passwords, APNs private keys, and test accounts should stay in local `.env` files or in the deployment environment.
 
 The iOS app reads its HTTPS server and registration URLs from `WEBGUARD_BASE_URL` and `WEBGUARD_REGISTRATION_URL` in the build configuration. Neither URL is editable in the app UI or hard-coded in a view. The login screen only asks for email and password.
 
@@ -75,7 +75,7 @@ APNs must be configured in the WebGuard Core deployment:
 ```env
 APNS_KEY_ID=
 APNS_TEAM_ID=
-APNS_BUNDLE_ID=com.example.webguard
+APNS_BUNDLE_ID=com.marcelbreuer.webguard
 APNS_PRIVATE_KEY=
 APNS_PRIVATE_KEY_PATH=
 APNS_ENVIRONMENT=production
@@ -111,8 +111,8 @@ See [docs/ios-app-store.md](docs/ios-app-store.md).
 Summary:
 
 1. Activate the Apple Developer Program.
-2. Create the bundle ID `com.example.webguard` in Apple Developer.
-3. Enable the Push Notifications capability.
+2. Register the bundle ID `com.marcelbreuer.webguard` in Apple Developer and confirm it is available to the account.
+3. Enable Push Notifications and register the `group.com.marcelbreuer.webguard` app group.
 4. Create an APNs auth key.
 5. Configure the backend with the APNs values.
 6. Create the App Store Connect app.

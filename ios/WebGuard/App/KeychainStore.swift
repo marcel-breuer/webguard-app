@@ -25,7 +25,7 @@ final class KeychainStore: SessionStore {
         ]
     }
 
-    init(service: String = "com.example.webguard") {
+    init(service: String = "com.marcelbreuer.webguard") {
         self.service = service
     }
 

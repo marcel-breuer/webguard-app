@@ -444,7 +444,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcelbreuer.webguard.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WebGuard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WebGuard";
@@ -459,7 +459,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcelbreuer.webguard.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WebGuard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WebGuard";
@@ -475,7 +475,7 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WebGuardWidget/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcelbreuer.webguard.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -492,7 +492,7 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WebGuardWidget/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.webguard.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcelbreuer.webguard.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
