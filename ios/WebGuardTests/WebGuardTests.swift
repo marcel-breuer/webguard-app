@@ -242,11 +242,11 @@ final class WebGuardTests: XCTestCase {
 
             switch (request.httpMethod, path) {
             case ("GET", "/api/monitorings"):
-                responseBody = #"{"data":[{"id":"monitor-1","name":"API","target":"https://example.test","type":"http","lifecycle_status":"active","groups":[{"id":"group-1","name":"Production"}],"latest_check":{"status":"up","checked_at":"2026-08-22T10:30:00Z","response_time_ms":128.5},"ownership":{"type":"private","can_manage":true,"team_id":null,"team_name":null},"open_incident":false,"can_manage":true,"maintenance":{"starts_at":"2026-08-22T10:00:00Z","ends_at":"2026-08-22T11:00:00Z","has_recurring_window":true}}],"links":{"first":"https://example.test/api/monitorings?page=1","last":"https://example.test/api/monitorings?page=1","prev":null,"next":null},"meta":{"current_page":1,"last_page":1,"per_page":25,"from":1,"to":1,"total":1,"as_of":"2026-08-22T10:30:00Z"}}"#
+                responseBody = #"{"data":[{"id":"monitor-1","name":"Keyword","target":"https://example.test","type":"keyword","keyword":"healthy","check_interval_minutes":15,"lifecycle_status":"active","groups":[{"id":"group-1","name":"Production"}],"latest_check":{"status":"up","checked_at":"2026-08-22T10:30:00Z","response_time_ms":128.5},"ownership":{"type":"private","can_manage":true,"team_id":null,"team_name":null},"open_incident":false,"can_manage":true,"maintenance":{"starts_at":"2026-08-22T10:00:00Z","ends_at":"2026-08-22T11:00:00Z","has_recurring_window":true}}],"links":{"first":"https://example.test/api/monitorings?page=1","last":"https://example.test/api/monitorings?page=1","prev":null,"next":null},"meta":{"current_page":1,"last_page":1,"per_page":25,"from":1,"to":1,"total":1,"as_of":"2026-08-22T10:30:00Z"}}"#
             case ("POST", "/api/monitorings"):
-                responseBody = #"{"data":{"id":"monitor-2","name":"Created","type":"http","lifecycle_status":"active","public_label_enabled":false,"ownership":{"type":"private","can_manage":true,"team_id":null},"group_assignments":[]}}"#
+                responseBody = #"{"data":{"id":"monitor-2","name":"Created","type":"keyword","keyword":"healthy","check_interval_minutes":5,"lifecycle_status":"active","public_label_enabled":false,"ownership":{"type":"private","can_manage":true,"team_id":null},"group_assignments":[]}}"#
             case ("PATCH", "/api/monitorings/monitor-2"):
-                responseBody = #"{"data":{"id":"monitor-2","name":"Updated","type":"http","lifecycle_status":"paused","public_label_enabled":false,"ownership":{"type":"private","can_manage":true,"team_id":null},"group_assignments":[{"id":"group-1","name":"Production"}]}}"#
+                responseBody = #"{"data":{"id":"monitor-2","name":"Updated","type":"keyword","keyword":"healthy","check_interval_minutes":5,"lifecycle_status":"paused","public_label_enabled":false,"ownership":{"type":"private","can_manage":true,"team_id":null},"group_assignments":[{"id":"group-1","name":"Production"}]}}"#
             case ("POST", "/api/monitorings/monitor-1/ownership/team"):
                 responseBody = #"{"data":{"id":"monitor-1","ownership":{"type":"team","can_manage":true,"team_id":"team-1","team_name":"Operations"}}}"#
             case ("POST", "/api/monitorings/monitor-1/ownership/private"):
@@ -279,13 +279,15 @@ final class WebGuardTests: XCTestCase {
         let payload = MonitoringMutationPayload(
             name: "Created",
             target: "https://created.example.test",
-            type: "http",
+            type: "keyword",
             status: "active",
             timeout: 10,
             httpMethod: "GET",
             expectedHTTPStatuses: "200-299",
             httpHeaders: [:],
-            port: nil
+            port: nil,
+            keyword: "healthy",
+            checkIntervalMinutes: 5
         )
 
         let monitors = try await client.listMonitorings()
@@ -296,11 +298,16 @@ final class WebGuardTests: XCTestCase {
         try await client.deleteMonitoring(id: "monitor-2")
 
         XCTAssertEqual(monitors.first?.status, "up")
+        XCTAssertEqual(monitors.first?.type, "keyword")
+        XCTAssertEqual(monitors.first?.keyword, "healthy")
+        XCTAssertEqual(monitors.first?.checkIntervalMinutes, 15)
         XCTAssertEqual(monitors.first?.lifecycleStatus, "active")
         XCTAssertEqual(monitors.first?.lastSeenAt ?? .distantPast, Date(timeIntervalSince1970: 1_787_394_600))
         XCTAssertEqual(monitors.first?.groups?.first?.name, "Production")
         XCTAssertEqual(monitors.first?.ownership?.type, "private")
         XCTAssertEqual(created.data.lifecycleStatus, "active")
+        XCTAssertEqual(created.data.keyword, "healthy")
+        XCTAssertEqual(created.data.checkIntervalMinutes, 5)
         XCTAssertEqual(updated.data.lifecycleStatus, "paused")
         XCTAssertEqual(updated.data.groupAssignments?.first?.id, "group-1")
         XCTAssertEqual(movedToTeam.data.ownership?.teamID, "team-1")
@@ -316,6 +323,16 @@ final class WebGuardTests: XCTestCase {
             "/api/monitorings/monitor-2"
         ])
         XCTAssertEqual(requests.map { $0.httpMethod }, ["GET", "POST", "PATCH", "POST", "POST", "DELETE"])
+
+        let createBody = try XCTUnwrap(requests[1].httpBody)
+        let createPayload = try XCTUnwrap(JSONSerialization.jsonObject(with: createBody) as? [String: Any])
+        XCTAssertEqual(createPayload["keyword"] as? String, "healthy")
+        XCTAssertEqual(createPayload["check_interval_minutes"] as? Int, 5)
+
+        let updateBody = try XCTUnwrap(requests[2].httpBody)
+        let updatePayload = try XCTUnwrap(JSONSerialization.jsonObject(with: updateBody) as? [String: Any])
+        XCTAssertEqual(updatePayload["keyword"] as? String, "healthy")
+        XCTAssertEqual(updatePayload["check_interval_minutes"] as? Int, 5)
     }
 
     func testClientTreatsUnauthorizedAndUnexpectedMonitoringResponsesAsFailures() async throws {

@@ -1482,6 +1482,8 @@ private struct MonitoringEditorView: View {
     @State private var type: String
     @State private var status: String
     @State private var port: String
+    @State private var keyword: String
+    @State private var checkIntervalMinutes: Int
     @State private var isSaving = false
 
     init(monitor: KnownMonitor?, onSaved: @escaping (KnownMonitor) -> Void) {
@@ -1492,6 +1494,8 @@ private struct MonitoringEditorView: View {
         _type = State(initialValue: monitor?.type ?? "http")
         _status = State(initialValue: monitor?.status == "paused" ? "paused" : "active")
         _port = State(initialValue: "")
+        _keyword = State(initialValue: monitor?.keyword ?? "")
+        _checkIntervalMinutes = State(initialValue: WebsiteCheckIntervals.initialSelection(for: monitor))
     }
 
     var body: some View {
@@ -1504,6 +1508,7 @@ private struct MonitoringEditorView: View {
                         .autocorrectionDisabled()
                     Picker("Typ", selection: $type) {
                         Text("HTTP").tag("http")
+                        Text("Keyword").tag("keyword")
                         Text("Ping").tag("ping")
                         Text("Port").tag("port")
                     }
@@ -1517,6 +1522,23 @@ private struct MonitoringEditorView: View {
                         TextField("Port", text: $port).keyboardType(.numberPad)
                     }
                 }
+                if WebsiteCheckIntervals.applies(to: type) {
+                    Section("Prüfintervall") {
+                        Picker("Intervall", selection: $checkIntervalMinutes) {
+                            ForEach(WebsiteCheckIntervals.options, id: \.self) { minutes in
+                                Text("\(minutes) Minuten").tag(minutes)
+                            }
+                        }
+                        .accessibilityIdentifier("monitoring-check-interval")
+                    }
+                }
+                if type == "keyword" {
+                    Section("Keyword-Konfiguration") {
+                        TextField("Erforderliches Keyword", text: $keyword)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                }
                 Section {
                     Text("Ein Erstellen wird bei unbekanntem Ergebnis nicht automatisch wiederholt. Änderungen und Löschen verwenden die serverseitig definierten idempotenten Methoden.")
                         .font(.footnote)
@@ -1528,7 +1550,7 @@ private struct MonitoringEditorView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isSaving ? "Speichern…" : "Speichern") { Task { await save() } }
-                        .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || target.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (type == "port" && Int(port) == nil))
+                        .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || target.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (type == "port" && Int(port) == nil) || (type == "keyword" && keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                 }
             }
         }
@@ -1542,11 +1564,13 @@ private struct MonitoringEditorView: View {
             target: target.trimmingCharacters(in: .whitespacesAndNewlines),
             type: type,
             status: status,
-            timeout: type == "http" ? 10 : nil,
-            httpMethod: type == "http" ? "GET" : nil,
-            expectedHTTPStatuses: type == "http" ? "200-299" : nil,
-            httpHeaders: type == "http" ? [:] : nil,
-            port: type == "port" ? Int(port) : nil
+            timeout: WebsiteCheckIntervals.applies(to: type) ? 10 : nil,
+            httpMethod: WebsiteCheckIntervals.applies(to: type) ? "GET" : nil,
+            expectedHTTPStatuses: WebsiteCheckIntervals.applies(to: type) ? "200-299" : nil,
+            httpHeaders: WebsiteCheckIntervals.applies(to: type) ? [:] : nil,
+            port: type == "port" ? Int(port) : nil,
+            keyword: type == "keyword" ? keyword.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+            checkIntervalMinutes: WebsiteCheckIntervals.applies(to: type) ? checkIntervalMinutes : nil
         )
         if let saved = await appState.saveMonitoring(id: monitor?.id, payload: payload) {
             onSaved(saved)

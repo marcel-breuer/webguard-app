@@ -106,6 +106,8 @@ final class WebGuardAPIClient: WebGuardAPIClientProtocol {
                 target: monitoring.target,
                 status: monitoring.latestCheck?.status ?? monitoring.lifecycleStatus,
                 type: monitoring.type,
+                keyword: monitoring.keyword,
+                checkIntervalMinutes: monitoring.checkIntervalMinutes,
                 ownership: monitoring.ownership,
                 lastSeenAt: monitoring.latestCheck?.checkedAt ?? Date(),
                 lifecycleStatus: monitoring.lifecycleStatus,
