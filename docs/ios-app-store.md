@@ -93,6 +93,10 @@ Setze lokal:
 
 ```xcconfig
 APPLE_DEVELOPMENT_TEAM = <Apple-Team-ID>
+DEVELOPMENT_TEAM = $(APPLE_DEVELOPMENT_TEAM)
+PRODUCT_BUNDLE_IDENTIFIER = com.marcelbreuer.webguard
+WEBGUARD_BASE_URL = https:/$()/app.webguard.dev
+WEBGUARD_REGISTRATION_URL = https:/$()/app.webguard.dev/register
 ```
 
 `APPLE_DEVELOPMENT_TEAM` is the ten-character Team ID shown in the Apple Developer account. Provide it as an Xcode build setting or protected CI variable when creating a signed archive; the checked-in xcconfig forwards it to Xcode without storing account-specific data. The app and widget share `group.com.marcelbreuer.webguard` for app-group storage. Register that group and enable Push Notifications for the app identifier before signing.
