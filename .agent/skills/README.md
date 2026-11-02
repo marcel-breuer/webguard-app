@@ -11,6 +11,7 @@ Read the applicable `AGENTS.md` first, identify the relevant skills, then read o
 | Review Code | Review changes for risks | A task asks for review, audit, or assessment of a diff or files | [review-code/SKILL.md](review-code/SKILL.md) |
 | API Change | Update WebGuard API interaction | A task changes endpoints, payloads, response handling, auth, or errors | [api-change/SKILL.md](api-change/SKILL.md) |
 | Frontend Change | Update SwiftUI screens or interaction | A task changes native UI, state presentation, navigation, or accessibility | [frontend-change/SKILL.md](frontend-change/SKILL.md) |
+| Unslop | Audit and improve UI craft while preserving the product's existing design direction | New SwiftUI views, UI redesigns, or focused UI reviews | [unslop/SKILL.md](unslop/SKILL.md) |
 | Security Review | Assess security and privacy impact | A task asks for security review or touches auth, tokens, Keychain, APNs, privacy, or external services | [security-review/SKILL.md](security-review/SKILL.md) |
 | Documentation Change | Update repository documentation | A task changes README, release docs, setup, validation, or governance text | [documentation-change/SKILL.md](documentation-change/SKILL.md) |
 | Update Dependencies | Add or change dependencies | A task proposes third-party libraries or package manager setup | [update-dependencies/SKILL.md](update-dependencies/SKILL.md) |

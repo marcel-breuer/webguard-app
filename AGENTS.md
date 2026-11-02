@@ -11,6 +11,7 @@ This file is the canonical source of project-wide instructions. Adapter files fo
 - Local rules MUST NOT weaken security, privacy, compliance, or reviewability requirements from this file.
 - Agent-specific adapters MUST NOT create different standards for different tools.
 - Shared skills in `.agent/skills/` supplement this file and never override it.
+- For new or redesigned SwiftUI views, and focused UI reviews, agents MUST invoke `$unslop` from `.agent/skills/unslop/SKILL.md`. Run its audit before proposing UI edits; apply its guidance in SwiftUI using the existing `Brand` tokens, components, and architecture below. Make only evidence-backed changes and preserve existing product behavior and conventions.
 - Tools without a repository-specific adapter, including OpenCode, Windsurf, Cline, Roo Code, Aider, and comparable agents, are governed directly by this file and `.agent/skills/`.
 
 ## Instruction Priority
