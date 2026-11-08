@@ -73,7 +73,7 @@ struct ConnectView: View {
                 .padding(20)
                 .webGuardContentWidth(720)
             }
-            .background(Brand.background)
+            .webGuardScreen()
         }
     }
 }
@@ -102,19 +102,20 @@ struct FormTextField: View {
             }
             .font(.system(size: 17, design: .rounded))
             .padding(14)
-            .background(Brand.surface)
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Brand.border, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .foregroundStyle(Brand.text)
+            .webGuardGlass(cornerRadius: 8)
         }
     }
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(.white)
             .padding(.vertical, 16)
             .background(configuration.isPressed ? Brand.accent.opacity(0.85) : Brand.accent)
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .opacity(isEnabled ? 1 : 0.45)
     }
 }

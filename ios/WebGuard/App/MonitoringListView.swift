@@ -130,7 +130,7 @@ struct MonitoringListView: View {
             .navigationDestination(item: $selectedMonitor) { monitor in
                 MonitoringDetailView(monitor: monitor)
             }
-            .background(Brand.background)
+            .webGuardScreen()
             .sheet(isPresented: $showingCreate) {
                 MonitoringEditorView(monitor: nil) { created in
                     selectedMonitor = created
@@ -308,7 +308,7 @@ private struct MaintenanceWindowsView: View {
         }
         .navigationTitle("Wartungsfenster")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Brand.background)
+        .webGuardScreen()
     }
 }
 
@@ -532,7 +532,7 @@ struct MonitoringDetailView: View {
             }
         }
         .accessibilityIdentifier(WebGuardAccessibilityID.monitoringDetail(monitor.id))
-        .background(Brand.background)
+        .webGuardScreen()
         .task {
             detail = appState.monitoringDetail(for: monitor.id)?.payload
             await refreshDetail()
@@ -1241,7 +1241,7 @@ private struct UptimeCalendarDayDetail: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Brand.background)
+        .webGuardScreen()
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .accessibilityIdentifier(WebGuardAccessibilityID.monitoringUptimeCalendarDay("detail"))
     }
@@ -1286,27 +1286,31 @@ private struct MaintenanceWorkspaceView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Einmalige Wartung") {
-                    ForEach(appState.oneOffMaintenance) { window in
-                        MaintenanceRow(window: window) { Task { await appState.cancelOneOffMaintenance(window) } }
+                Group {
+                    Section("Einmalige Wartung") {
+                        ForEach(appState.oneOffMaintenance) { window in
+                            MaintenanceRow(window: window) { Task { await appState.cancelOneOffMaintenance(window) } }
+                        }
                     }
-                }
-                Section("Wiederkehrende Wartung") {
-                    ForEach(appState.recurringMaintenance) { window in
-                        VStack(alignment: .leading, spacing: 6) {
-                            MaintenanceRow(window: window, cancel: nil)
-                            if window.canManage {
-                                Toggle("Aktiv", isOn: Binding(
-                                    get: { window.enabled },
-                                    set: { enabled in
-                                        Task { await appState.setRecurringMaintenanceEnabled(window, enabled: enabled) }
-                                    }
-                                ))
+                    Section("Wiederkehrende Wartung") {
+                        ForEach(appState.recurringMaintenance) { window in
+                            VStack(alignment: .leading, spacing: 6) {
+                                MaintenanceRow(window: window, cancel: nil)
+                                if window.canManage {
+                                    Toggle("Aktiv", isOn: Binding(
+                                        get: { window.enabled },
+                                        set: { enabled in
+                                            Task { await appState.setRecurringMaintenanceEnabled(window, enabled: enabled) }
+                                        }
+                                    ))
+                                }
                             }
                         }
                     }
                 }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
             }
+            .webGuardScreen()
             .navigationTitle("Wartung")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fertig") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button { showingScheduler = true } label: { Image(systemName: "plus") }.disabled(appState.maintenanceCapabilities?.canSchedule != true) } }
             .task { await appState.refreshMaintenance() }
@@ -1335,11 +1339,15 @@ private struct MaintenanceSchedulerView: View {
     @State private var mode = "one_off"; @State private var monitoringID = ""; @State private var startsAt = Date().addingTimeInterval(3600); @State private var endsAt = Date().addingTimeInterval(7200); @State private var recurrence = "weekly"
     var body: some View {
         NavigationStack { Form {
-            Picker("Art", selection: $mode) { Text("Einmalig").tag("one_off"); Text("Wiederkehrend").tag("recurring") }
-            Picker("Monitoring", selection: $monitoringID) { ForEach(appState.maintenanceCapabilities?.manageableMonitorings ?? []) { Text($0.name).tag($0.id) } }
-            DatePicker("Beginn", selection: $startsAt)
-            if mode == "one_off" { DatePicker("Ende", selection: $endsAt) } else { Picker("Wiederholung", selection: $recurrence) { Text("Wöchentlich").tag("weekly"); Text("Monatlich").tag("monthly") }; Text("Die nächste Ausführung wird nach dem Speichern serverseitig mit Zeitzone und DST berechnet.").font(.footnote).foregroundStyle(Brand.mutedText) }
-        }.navigationTitle("Wartung planen").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("Planen") { Task { await save() } }.disabled(monitoringID.isEmpty) } } }.task { if monitoringID.isEmpty { monitoringID = appState.maintenanceCapabilities?.manageableMonitorings.first?.id ?? "" } }
+                Group {
+                    Picker("Art", selection: $mode) { Text("Einmalig").tag("one_off"); Text("Wiederkehrend").tag("recurring") }
+                    Picker("Monitoring", selection: $monitoringID) { ForEach(appState.maintenanceCapabilities?.manageableMonitorings ?? []) { Text($0.name).tag($0.id) } }
+                    DatePicker("Beginn", selection: $startsAt)
+                    if mode == "one_off" { DatePicker("Ende", selection: $endsAt) } else { Picker("Wiederholung", selection: $recurrence) { Text("Wöchentlich").tag("weekly"); Text("Monatlich").tag("monthly") }; Text("Die nächste Ausführung wird nach dem Speichern serverseitig mit Zeitzone und DST berechnet.").font(.footnote).foregroundStyle(Brand.mutedText) }
+                }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
+            }
+            .webGuardScreen().navigationTitle("Wartung planen").toolbar { ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("Planen") { Task { await save() } }.disabled(monitoringID.isEmpty) } } }.task { if monitoringID.isEmpty { monitoringID = appState.maintenanceCapabilities?.manageableMonitorings.first?.id ?? "" } }
     }
     private func save() async {
         let payload = MaintenanceSchedulePayload(mode: mode, scope: "monitoring", monitoringID: monitoringID, monitoringGroupID: nil, maintenanceFrom: mode == "one_off" ? startsAt : nil, maintenanceUntil: mode == "one_off" ? endsAt : nil, recurringStartsAt: mode == "recurring" ? startsAt : nil, recurringDurationMinutes: mode == "recurring" ? 60 : nil, recurrence: mode == "recurring" ? recurrence : nil, recurringTimezone: mode == "recurring" ? TimeZone.current.identifier : nil, idempotencyKey: UUID().uuidString)
@@ -1356,46 +1364,50 @@ private struct CollaborationWorkspaceView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Teams") {
-                    if appState.teams.isEmpty {
-                        Text("Keine Teams sichtbar.").foregroundStyle(Brand.mutedText)
-                    } else {
-                        ForEach(appState.teams) { team in
-                            VStack(alignment: .leading) {
-                                Text(team.name).font(.headline)
-                                if let description = team.description, !description.isEmpty { Text(description).font(.footnote).foregroundStyle(Brand.mutedText) }
-                            }
-                        }
-                    }
-                }
-                Section("Private Monitoring-Gruppen") {
-                    ForEach(appState.monitoringGroups) { group in
-                        Button { editingGroup = group } label: {
-                            VStack(alignment: .leading) {
-                                Text(group.name).foregroundStyle(Brand.text)
-                                Text("\(group.assignableMonitoringCount) zuweisbare Monitorings").font(.footnote).foregroundStyle(Brand.mutedText)
-                            }
-                        }
-                    }
-                    .onDelete { offsets in
-                        for index in offsets { Task { _ = await appState.deleteMonitoringGroup(appState.monitoringGroups[index].id) } }
-                    }
-                }
-                Section("Ownership") {
-                    ForEach(appState.monitors) { monitoring in
-                        Menu {
+                Group {
+                    Section("Teams") {
+                        if appState.teams.isEmpty {
+                            Text("Keine Teams sichtbar.").foregroundStyle(Brand.mutedText)
+                        } else {
                             ForEach(appState.teams) { team in
-                                Button("Team: \(team.name)") { Task { _ = await appState.setMonitoringOwnership(monitoring, teamID: team.id) } }
+                                VStack(alignment: .leading) {
+                                    Text(team.name).font(.headline)
+                                    if let description = team.description, !description.isEmpty { Text(description).font(.footnote).foregroundStyle(Brand.mutedText) }
+                                }
                             }
-                            Button("Privat verwalten") { Task { _ = await appState.setMonitoringOwnership(monitoring, teamID: nil) } }
-                        } label: {
-                            HStack { Text(monitoring.name); Spacer(); Image(systemName: "person.2") }
                         }
                     }
-                    Text("Nur serverseitig autorisierte Team-Administratoren können Ownership ändern; Team-Monitorings werden aus privaten Gruppen entfernt.")
-                        .font(.footnote).foregroundStyle(Brand.mutedText)
+                    Section("Private Monitoring-Gruppen") {
+                        ForEach(appState.monitoringGroups) { group in
+                            Button { editingGroup = group } label: {
+                                VStack(alignment: .leading) {
+                                    Text(group.name).foregroundStyle(Brand.text)
+                                    Text("\(group.assignableMonitoringCount) zuweisbare Monitorings").font(.footnote).foregroundStyle(Brand.mutedText)
+                                }
+                            }
+                        }
+                        .onDelete { offsets in
+                            for index in offsets { Task { _ = await appState.deleteMonitoringGroup(appState.monitoringGroups[index].id) } }
+                        }
+                    }
+                    Section("Ownership") {
+                        ForEach(appState.monitors) { monitoring in
+                            Menu {
+                                ForEach(appState.teams) { team in
+                                    Button("Team: \(team.name)") { Task { _ = await appState.setMonitoringOwnership(monitoring, teamID: team.id) } }
+                                }
+                                Button("Privat verwalten") { Task { _ = await appState.setMonitoringOwnership(monitoring, teamID: nil) } }
+                            } label: {
+                                HStack { Text(monitoring.name); Spacer(); Image(systemName: "person.2") }
+                            }
+                        }
+                        Text("Nur serverseitig autorisierte Team-Administratoren können Ownership ändern; Team-Monitorings werden aus privaten Gruppen entfernt.")
+                            .font(.footnote).foregroundStyle(Brand.mutedText)
+                    }
                 }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
             }
+            .webGuardScreen()
             .navigationTitle("Zusammenarbeit")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Fertig") { dismiss() } }
@@ -1429,16 +1441,20 @@ private struct MonitoringGroupEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Gruppe") {
-                    TextField("Name", text: $name)
-                    TextField("Beschreibung", text: $description, axis: .vertical)
-                }
-                Section("Private Monitorings") {
-                    ForEach(assignable) { monitoring in
-                        Toggle(monitoring.name, isOn: selectionBinding(for: monitoring.id))
+                Group {
+                    Section("Gruppe") {
+                        TextField("Name", text: $name)
+                        TextField("Beschreibung", text: $description, axis: .vertical)
+                    }
+                    Section("Private Monitorings") {
+                        ForEach(assignable) { monitoring in
+                            Toggle(monitoring.name, isOn: selectionBinding(for: monitoring.id))
+                        }
                     }
                 }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
             }
+            .webGuardScreen()
             .navigationTitle(group == nil ? "Gruppe erstellen" : "Gruppe bearbeiten")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
@@ -1501,50 +1517,54 @@ private struct MonitoringEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Grunddaten") {
-                    TextField("Name", text: $name)
-                    TextField("Ziel", text: $target)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    Picker("Typ", selection: $type) {
-                        Text("HTTP").tag("http")
-                        Text("Keyword").tag("keyword")
-                        Text("Ping").tag("ping")
-                        Text("Port").tag("port")
-                    }
-                    Picker("Status", selection: $status) {
-                        Text("Aktiv").tag("active")
-                        Text("Pausiert").tag("paused")
-                    }
-                }
-                if type == "port" {
-                    Section("Port-Konfiguration") {
-                        TextField("Port", text: $port).keyboardType(.numberPad)
-                    }
-                }
-                if WebsiteCheckIntervals.applies(to: type) {
-                    Section("Prüfintervall") {
-                        Picker("Intervall", selection: $checkIntervalMinutes) {
-                            ForEach(WebsiteCheckIntervals.options, id: \.self) { minutes in
-                                Text("\(minutes) Minuten").tag(minutes)
-                            }
-                        }
-                        .accessibilityIdentifier("monitoring-check-interval")
-                    }
-                }
-                if type == "keyword" {
-                    Section("Keyword-Konfiguration") {
-                        TextField("Erforderliches Keyword", text: $keyword)
+                Group {
+                    Section("Grunddaten") {
+                        TextField("Name", text: $name)
+                        TextField("Ziel", text: $target)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                        Picker("Typ", selection: $type) {
+                            Text("HTTP").tag("http")
+                            Text("Keyword").tag("keyword")
+                            Text("Ping").tag("ping")
+                            Text("Port").tag("port")
+                        }
+                        Picker("Status", selection: $status) {
+                            Text("Aktiv").tag("active")
+                            Text("Pausiert").tag("paused")
+                        }
+                    }
+                    if type == "port" {
+                        Section("Port-Konfiguration") {
+                            TextField("Port", text: $port).keyboardType(.numberPad)
+                        }
+                    }
+                    if WebsiteCheckIntervals.applies(to: type) {
+                        Section("Prüfintervall") {
+                            Picker("Intervall", selection: $checkIntervalMinutes) {
+                                ForEach(WebsiteCheckIntervals.options, id: \.self) { minutes in
+                                    Text("\(minutes) Minuten").tag(minutes)
+                                }
+                            }
+                            .accessibilityIdentifier("monitoring-check-interval")
+                        }
+                    }
+                    if type == "keyword" {
+                        Section("Keyword-Konfiguration") {
+                            TextField("Erforderliches Keyword", text: $keyword)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                    }
+                    Section {
+                        Text("Ein Erstellen wird bei unbekanntem Ergebnis nicht automatisch wiederholt. Änderungen und Löschen verwenden die serverseitig definierten idempotenten Methoden.")
+                            .font(.footnote)
+                            .foregroundStyle(Brand.mutedText)
                     }
                 }
-                Section {
-                    Text("Ein Erstellen wird bei unbekanntem Ergebnis nicht automatisch wiederholt. Änderungen und Löschen verwenden die serverseitig definierten idempotenten Methoden.")
-                        .font(.footnote)
-                        .foregroundStyle(Brand.mutedText)
-                }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
             }
+            .webGuardScreen()
             .navigationTitle(monitor == nil ? "Monitoring erstellen" : "Monitoring bearbeiten")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }

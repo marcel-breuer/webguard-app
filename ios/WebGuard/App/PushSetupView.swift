@@ -58,7 +58,7 @@ struct PushSetupView: View {
             }
             .padding(20)
             .webGuardContentWidth(720)
-            .background(Brand.background)
+            .webGuardScreen()
         }
     }
 }
