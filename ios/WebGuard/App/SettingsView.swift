@@ -118,7 +118,7 @@ struct SettingsView: View {
                 .webGuardContentWidth(860)
             }
             .accessibilityIdentifier(WebGuardAccessibilityID.settings)
-            .background(Brand.background)
+            .webGuardScreen()
             .navigationTitle("Einstellungen")
             .navigationBarTitleDisplayMode(.inline)
             .task {

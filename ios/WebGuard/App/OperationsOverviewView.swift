@@ -44,7 +44,7 @@ struct OperationsOverviewView: View {
                 .webGuardContentWidth(1080)
             }
             .accessibilityIdentifier(WebGuardAccessibilityID.overview)
-            .background(Brand.background)
+            .webGuardScreen()
             .refreshable {
                 await appState.refreshOverview()
             }
@@ -220,12 +220,7 @@ private struct OverviewIntro: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
-        .background(Brand.surface)
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(Brand.accent.opacity(0.14), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .webGuardGlass(cornerRadius: 24)
     }
 
     private var stateColor: Color {
@@ -780,8 +775,7 @@ private struct NextActionCard: View {
                 Image(systemName: "arrow.up.right")
                     .foregroundStyle(Brand.accent)
                     .frame(width: 38, height: 38)
-                    .background(Brand.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .webGuardGlass(cornerRadius: 12)
             }
             Text("Nutze die Übersicht, um den operativen Zustand deines Accounts schnell zu beurteilen.")
                 .font(.system(size: 14, design: .rounded))

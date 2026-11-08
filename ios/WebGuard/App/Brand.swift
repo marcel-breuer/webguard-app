@@ -71,16 +71,79 @@ enum WebGuardAccessibilityID {
     }
 }
 
+// Keep opaque brand-colored content readable over the system material in every appearance.
+struct WebGuardGlassSurface: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+    var cornerRadius: CGFloat = 16
+
+    private var opaque: Bool { reduceTransparency || contrast == .increased }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        ZStack {
+            if opaque {
+                shape.fill(Brand.surface)
+            } else {
+                shape.fill(.regularMaterial)
+                shape.fill(Brand.surface.opacity(0.82))
+            }
+        }
+        .overlay {
+            shape.strokeBorder(Brand.border, lineWidth: contrast == .increased ? 2 : 1)
+        }
+        .shadow(color: Brand.text.opacity(opaque ? 0 : 0.04), radius: 12, x: 0, y: 4)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+struct WebGuardBackground: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        Brand.background
+            .overlay {
+                if !reduceTransparency && contrast != .increased {
+                    LinearGradient(
+                        colors: [Brand.surface.opacity(0.75), .clear, Brand.border.opacity(0.35)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                }
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct WebGuardScreenModifier: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            .background { WebGuardBackground() }
+            .toolbarBackground(
+                reduceTransparency || contrast == .increased
+                    ? AnyShapeStyle(Brand.surface) : AnyShapeStyle(.regularMaterial),
+                for: .navigationBar, .tabBar
+            )
+            .toolbarBackground(.visible, for: .navigationBar, .tabBar)
+            .presentationBackground {
+                WebGuardBackground()
+            }
+    }
+}
+
 struct CardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(16)
-            .background(Brand.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Brand.border, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .webGuardGlass()
     }
 }
 
@@ -137,6 +200,15 @@ extension MonitorTone {
 }
 
 extension View {
+    func webGuardGlass(cornerRadius: CGFloat = 16) -> some View {
+        background { WebGuardGlassSurface(cornerRadius: cornerRadius) }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    func webGuardScreen() -> some View {
+        modifier(WebGuardScreenModifier())
+    }
+
     func webGuardCard() -> some View {
         modifier(CardModifier())
     }

@@ -37,7 +37,7 @@ struct NotificationsView: View {
                 .webGuardContentWidth(900)
             }
             .accessibilityIdentifier(WebGuardAccessibilityID.notifications)
-            .background(Brand.background)
+            .webGuardScreen()
             .navigationTitle("Benachrichtigungen")
             .navigationBarTitleDisplayMode(.inline)
             .task { await appState.refreshNotificationBoard() }

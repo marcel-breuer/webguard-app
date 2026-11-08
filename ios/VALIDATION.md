@@ -37,3 +37,11 @@ The unit suite includes `testLocalCacheLoadPerformanceAtMonitoringCapacity`, whi
 ## Manual checks
 
 The current project has no authenticated UI-test fixture or APNs simulator harness. Before release, manually verify the authenticated shell on iPhone portrait and iPad portrait/landscape, including Dynamic Type, VoiceOver traversal, reduced motion, offline refresh, maintenance, and push deep-link flows.
+
+## Glass interface checks
+
+The interface keeps the existing light Brand palette for content and native presentations. Shared cards, form rows, fields, navigation bars, and sheets use SwiftUI materials with quiet borders. Native menus, alerts, pickers, focus, selection, and destructive actions retain system behavior.
+
+On iPhone and iPad (portrait and landscape), inspect sign-in, push setup, every main destination, monitoring details and history, maintenance, collaboration, status-page incidents and their editors. Include empty, loading, offline, error, disabled, and selected states. Check charts and semantic status colors against the original palette.
+
+Repeat with Settings → Accessibility → Display & Text Size → Reduce Transparency and Increase Contrast, separately and together. Cards and navigation must become opaque; borders strengthen with increased contrast. Verify large accessibility text, VoiceOver, Full Keyboard Access, and Reduce Motion. The background is static and introduces no motion. Check sheets, alerts, and menus while scrolled and with the keyboard visible.

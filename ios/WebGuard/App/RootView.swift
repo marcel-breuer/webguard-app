@@ -13,6 +13,8 @@ struct RootView: View {
                 MainTabsView()
             }
         }
+        .tint(Brand.accent)
+        .preferredColorScheme(.light)
         .alert("WebGuard", isPresented: alertBinding) {
             Button("OK", role: .cancel) {
                 appState.dismissAlert()
@@ -47,11 +49,15 @@ struct MainTabsView: View {
             if horizontalSizeClass == .regular {
                 NavigationSplitView {
                     List(selection: $selectedDestination) {
-                        ForEach(MainDestination.allCases) { destination in
-                            navigationLabel(for: destination)
-                                .tag(destination as MainDestination?)
+                        Group {
+                            ForEach(MainDestination.allCases) { destination in
+                                navigationLabel(for: destination)
+                                    .tag(destination as MainDestination?)
+                            }
                         }
+                        .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
                     }
+                    .webGuardScreen()
                     .navigationTitle("WebGuard")
                     .listStyle(.sidebar)
                 } detail: {
@@ -161,17 +167,21 @@ struct StatusPageWorkspaceView: View {
     var body: some View {
         NavigationStack {
             List {
-                if appState.isOffline { Label("Offline: Arbeitsdaten können veraltet sein.", systemImage: "wifi.slash").foregroundStyle(Brand.warning) }
-                ForEach(appState.statusPages) { page in
-                    Button { selectedPage = page; Task { await appState.refreshStatusPageIncidents(page.id) } } label: {
-                        VStack(alignment: .leading) {
-                            Text(page.name).font(.headline)
-                            Text("\(page.openIncidentCount) offene Vorfälle · \(page.publication.isPublic ? "Öffentlich" : "Entwurf")").foregroundStyle(Brand.mutedText)
-                        }
-                    }.buttonStyle(.plain)
+                Group {
+                    if appState.isOffline { Label("Offline: Arbeitsdaten können veraltet sein.", systemImage: "wifi.slash").foregroundStyle(Brand.warning) }
+                    ForEach(appState.statusPages) { page in
+                        Button { selectedPage = page; Task { await appState.refreshStatusPageIncidents(page.id) } } label: {
+                            VStack(alignment: .leading) {
+                                Text(page.name).font(.headline)
+                                Text("\(page.openIncidentCount) offene Vorfälle · \(page.publication.isPublic ? "Öffentlich" : "Entwurf")").foregroundStyle(Brand.mutedText)
+                            }
+                        }.buttonStyle(.plain)
+                    }
+                    if appState.statusPages.isEmpty { ContentUnavailableView("Keine Statusseiten", systemImage: "rectangle.on.rectangle.slash", description: Text("Keine autorisierten Statusseiten verfügbar.")) }
                 }
-                if appState.statusPages.isEmpty { ContentUnavailableView("Keine Statusseiten", systemImage: "rectangle.on.rectangle.slash", description: Text("Keine autorisierten Statusseiten verfügbar.")) }
-            }.navigationTitle("Statusseiten").task { await appState.refreshStatusPages() }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
+            }
+            .webGuardScreen().navigationTitle("Statusseiten").task { await appState.refreshStatusPages() }
              .sheet(item: $selectedPage) { page in StatusPageIncidentSheet(page: page) }
         }
     }
@@ -185,29 +195,33 @@ private struct StatusPageIncidentSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Veröffentlichung") {
-                    Toggle(
-                        "Öffentlich",
-                        isOn: Binding(
-                            get: { page.publication.isPublic },
-                            set: { value in Task { await appState.setStatusPagePublication(page, isPublic: value) } }
+                Group {
+                    Section("Veröffentlichung") {
+                        Toggle(
+                            "Öffentlich",
+                            isOn: Binding(
+                                get: { page.publication.isPublic },
+                                set: { value in Task { await appState.setStatusPagePublication(page, isPublic: value) } }
+                            )
                         )
-                    )
-                    .disabled(!page.publication.canChange)
-                }
+                        .disabled(!page.publication.canChange)
+                    }
 
-                Section("Offene Vorfälle") {
-                    let incidents = appState.statusPageIncidents[page.id] ?? []
-                    if incidents.isEmpty {
-                        Text("Keine offenen Vorfälle.")
-                            .foregroundStyle(Brand.mutedText)
-                    } else {
-                        ForEach(incidents) { incident in
-                            StatusPageIncidentWorkspaceCard(statusPageID: page.id, incident: incident)
+                    Section("Offene Vorfälle") {
+                        let incidents = appState.statusPageIncidents[page.id] ?? []
+                        if incidents.isEmpty {
+                            Text("Keine offenen Vorfälle.")
+                                .foregroundStyle(Brand.mutedText)
+                        } else {
+                            ForEach(incidents) { incident in
+                                StatusPageIncidentWorkspaceCard(statusPageID: page.id, incident: incident)
+                            }
                         }
                     }
                 }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
             }
+            .webGuardScreen()
             .navigationTitle(page.name)
             .toolbar { Button("Fertig") { dismiss() } }
         }
@@ -510,18 +524,22 @@ private struct IncidentMetadataEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Klassifizierung") {
-                    workspacePicker("Typ", selection: $incidentType, values: ["availability", "performance", "security", "dependency", "configuration", "other"])
-                    workspacePicker("Schweregrad", selection: $severity, values: ["low", "medium", "high", "critical"])
-                    TextField("Betroffener Service", text: $affectedService)
-                    workspacePicker("Kundenauswirkung", selection: $customerImpact, values: ["none", "degraded", "outage", "unknown"])
-                    workspacePicker("Beitragende Kategorie", selection: $contributingCategory, values: ["code", "infrastructure", "dependency", "configuration", "process", "unknown"])
+                Group {
+                    Section("Klassifizierung") {
+                        workspacePicker("Typ", selection: $incidentType, values: ["availability", "performance", "security", "dependency", "configuration", "other"])
+                        workspacePicker("Schweregrad", selection: $severity, values: ["low", "medium", "high", "critical"])
+                        TextField("Betroffener Service", text: $affectedService)
+                        workspacePicker("Kundenauswirkung", selection: $customerImpact, values: ["none", "degraded", "outage", "unknown"])
+                        workspacePicker("Beitragende Kategorie", selection: $contributingCategory, values: ["code", "infrastructure", "dependency", "configuration", "process", "unknown"])
+                    }
+                    Section("Interner Review") {
+                        TextField("Problembeschreibung", text: $problemDescription, axis: .vertical).lineLimit(3...8)
+                        TextField("Lösungsbeschreibung", text: $resolutionDescription, axis: .vertical).lineLimit(3...8)
+                    }
                 }
-                Section("Interner Review") {
-                    TextField("Problembeschreibung", text: $problemDescription, axis: .vertical).lineLimit(3...8)
-                    TextField("Lösungsbeschreibung", text: $resolutionDescription, axis: .vertical).lineLimit(3...8)
-                }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
             }
+            .webGuardScreen()
             .navigationTitle("Incident bearbeiten")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
@@ -572,19 +590,23 @@ private struct IncidentFollowUpEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Titel", text: $title)
-                TextField("Beschreibung", text: $description, axis: .vertical).lineLimit(3...8)
-                TextField("Zuständige Benutzer-ID", text: $assignedUserID)
-                TextField("Fälligkeit (JJJJ-MM-TT)", text: $dueAt)
-                TextField("Externe URL", text: $externalURL)
-                if followUp != nil {
-                    Picker("Status", selection: $status) {
-                        Text("Offen").tag("open")
-                        Text("In Arbeit").tag("in_progress")
-                        Text("Abgeschlossen").tag("completed")
+                Group {
+                    TextField("Titel", text: $title)
+                    TextField("Beschreibung", text: $description, axis: .vertical).lineLimit(3...8)
+                    TextField("Zuständige Benutzer-ID", text: $assignedUserID)
+                    TextField("Fälligkeit (JJJJ-MM-TT)", text: $dueAt)
+                    TextField("Externe URL", text: $externalURL)
+                    if followUp != nil {
+                        Picker("Status", selection: $status) {
+                            Text("Offen").tag("open")
+                            Text("In Arbeit").tag("in_progress")
+                            Text("Abgeschlossen").tag("completed")
+                        }
                     }
                 }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
             }
+            .webGuardScreen()
             .navigationTitle(followUp == nil ? "Follow-up anlegen" : "Follow-up bearbeiten")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
@@ -619,10 +641,14 @@ private struct IncidentTimelineEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Titel", text: $title)
-                TextField("Beschreibung", text: $description, axis: .vertical).lineLimit(3...8)
-                TextField("Zeitpunkt (ISO 8601)", text: $occurredAt)
+                Group {
+                    TextField("Titel", text: $title)
+                    TextField("Beschreibung", text: $description, axis: .vertical).lineLimit(3...8)
+                    TextField("Zeitpunkt (ISO 8601)", text: $occurredAt)
+                }
+                .listRowBackground(WebGuardGlassSurface(cornerRadius: 12))
             }
+            .webGuardScreen()
             .navigationTitle(event == nil ? "Ereignis anlegen" : "Ereignis bearbeiten")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
