@@ -233,3 +233,22 @@ A task is complete only when:
 - Documentation is updated where required.
 - No unintended files changed.
 - Assumptions and remaining risks are stated.
+
+## CI/CD Pipeline
+
+Stand: 2026-11-15. The pipeline is limited to tests, releases, and tags.
+
+Kept workflows:
+
+- `.github/workflows/ios.yml`, job `build-and-test`: release identity check (`scripts/validate-release-identity.sh`), XCTest simulator suite (`WebGuardTests`), and a device build on `main`. The identity check stays because it guards release validity.
+- `.github/workflows/ios.yml`, job `release`: after a green `build-and-test` on `main`, creates the `vX.Y.Z` tag and GitHub release if the commit has none yet.
+
+Removed workflows:
+
+- `.github/workflows/dependabot-auto-merge.yml`: auto-merged Dependabot PRs after their checks passed. Dependabot PRs are now reviewed and merged manually.
+
+Unchanged: `.github/dependabot.yml` is version-update configuration, not a workflow.
+
+Dependencies: `release` depends on `build-and-test` (`needs:`). The removed auto-merge workflow waited on the PR's check runs and has no replacement.
+
+Rule: run all pipeline steps locally before every PR. Run the identity check, device build, and simulator tests. Check the release job syntactically only and never create real releases or tags from a local run.
